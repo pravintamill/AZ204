@@ -54,3 +54,32 @@ dotnet webapp.dll ->
 
 Duplicate the session and run "curl http://localhost:5000 we will get the response 
 	 
+
+
+
+nginx is the webserver for Linux, to install it in linux
+
+sudo get-apt install nginx
+
+to do any configuration changes into linux server nginx we need to stop the server using the command sudo service nginx stop
+ 
+
+We are inside the Home folder by default click one level up -> etc -> nginx -> sites-available-> default, right click and see the permission for this file, it is 644 we can change its permission to 777 and edit it 
+
+command to change permission is sudo chmod 777 default 
+
+Replace the location configuration to the below
+
+location / {
+proxy_pass Http://localhost:5000;
+proxy_http_version 1.1;
+proxy_set_header Upgrade $http_upgrade;
+proxy_set_header Connection Keep-alive;
+proxy_set_header Host $host;
+proxy_cache_bypass $http_upgrade;
+
+}
+
+now start the service again 
+
+sudo service nginx start -> now click on the public IP address then instead of nginx page our web application page will be displaying 
