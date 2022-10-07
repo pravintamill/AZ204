@@ -1,0 +1,56 @@
+ Deploying a .NET Core app on Windows Server
+ 
+1. Assign a DNS name to the VM
+2. Add a rule for port 8172 to the NSG
+3. Add the role of the management service on the VM
+4. Check the configuration of the Management service in IIS
+5. Install the .net hosting bundle. This allows .net applications to be hosted on IIS
+6. Install web deploy v3.6 tool
+
+
+1. Go to VM overview -> DNS Name -> Click Not configured link -> enter name -> save
+
+2. Add inbound rule for Allow for the port 8172, service -Custom and save this 
+
+3. Server roles -> Web server (IIS) -> Management Tools -> Management services -> Add feature -> install
+
+4. Go to Application in IIS -> Click on the application -> Management services -> Click Enable remote connections (notice this has port number 8172 enabled, that is the reason why we created inbound rule for that port. ) -> Apply 
+
+5.Local server -> IE Enhanced security configuration -> Off for sometime ->  Download .net version you want to serve your application
+We only need hosting bundle
+
+6. Download web deploy tool
+
+
+From your visual studio you can publish your web project. If you want to add your account then Tools -> Options -> Azure Service Authentication -> Choose an account for publish 
+
+We need to login to azure credentials, choose our target VM, subscribtion, Resource group etc and publish. This will create a publish profile 
+
+
+Instead of creating inbound rule for HTTP port 80 after creating the VM, we can also allow inbound port while creating the VM
+
+
+Deploying .net app on the Linux VM
+
+We need putty application to connect with Linux VM
+
+1. Host name - Public IP address -> Open -> Yes
+
+Give credentials
+
+2. To publish into Linux -> Create new publish profile -> Folder (local folder or file share - it will create publish version of the project in bin\release\net6.0\publish) -> Publish
+
+3. We need to copy all artifacts from local to linux server using winSCP
+
+4. Host name , Uname and password -> WinSCP connected to the Linux
+Left hand side is your local machine, and right hand side is the linux server -> drag and drop folder to Linux after copy is complete go to the terminal type pwd (present working directory) -> ls (list)
+
+
+5. We need to install .net runtime on ubuntu also, for that we can see the instruction from Microsoft 
+
+Before install .NET, we need to add microsoft package signing key to your list of trusted keys and add the package repository then we can install SDK
+
+dotnet webapp.dll -> 
+
+Duplicate the session and run "curl http://localhost:5000 we will get the response 
+	 
