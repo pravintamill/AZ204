@@ -83,3 +83,88 @@ proxy_cache_bypass $http_upgrade;
 now start the service again 
 
 sudo service nginx start -> now click on the public IP address then instead of nginx page our web application page will be displaying 
+
+
+Click on Publish -> Select Azure -> Select Resource group and app service from visual studio
+
+
+Azure SQL database
+
+When we use VM and install SQL server then you need to configure the server, configure for high availability and configure backups etc. 
+
+But if you choose Azure SQL database then the above mentioned points are taken care by azure itself. 
+
+
+When we create Azure SQL we will create two resources one is SQL server and one database. 
+
+We can configure which authentication we want and then we can choose network connectivity
+
+  * No Access
+  * Public endpoint
+  * Private endpoint 
+
+Fireware rules 
+
+Allow Azure services and resources to access this server to yes 
+
+Add current client IP to connect with the database
+
+
+
+Publishing from Github
+====================
+
+Deployment -> Deployment Settings -> Continous deployment -> Enable 
+
+Github actions -> we can configure when creating app service 
+
+Another way Git -> Git repository->  Create and push -> this will create repository in local and then push those changes to git
+
+Deployment center -> Settings -> Source -> Github -> Repository , Branch, RunTime save 
+
+Go to logs ->  you can see log of deployment . 
+
+If you change and Git changes -> comments and commit then push push. If you go to the github then changes will be reflected. Go to webapp and see the logs
+it will show changes in progress or completed. another log we can find. If we invoke the url new content can be seen.
+
+
+Using the Azure Web app connection string 
+
+We can create connecting string under 
+
+Configuration -> App settings -> Connecting string ->  Value (connecting string ) , Type SQLAzure, Name (connection string name) 
+
+
+in service class we need Iconfiguration interface to invoke this connection string 
+
+private readonly Iconfiguartion _configuration; 
+
+public ProductService(Iconfiguartion _iConfiguartion  )
+{
+_configuration = _iconfiguration ; 
+}
+
+
+to get the connection string we need
+
+_configuration.getConnectionString("ConnectionString")
+
+
+
+
+Azure app service logging 
+
+1. Application logging (app code generated error )
+2. Web server logging (Raw HTTP request date)
+3. Detailed error message (Copies of .htm error pages)
+4. Deployment logging 
+
+
+
+App service -> app service log -> Application logging (filesystem)
+Level 
+
+If you dont want to use existing file system you can keep you logs in seperate storage account. 
+
+
+app service -> Log stream -> where you can see live loggin 
