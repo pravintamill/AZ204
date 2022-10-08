@@ -168,3 +168,134 @@ If you dont want to use existing file system you can keep you logs in seperate s
 
 
 app service -> Log stream -> where you can see live loggin 
+
+
+Azure Web Apps Autoscaling 
+
+Auto scaling features ensures that our web app serves better when there is a change in demand. If the demand is high then it automatically add more VMs and the other way around. 
+This autoscaling is manual process and if you need automatic process then you need to go for standard pricing plan. Notice there is no automatic autoscaling in basic and free tiers. We are doing autoscaling on pricing plan not on the app service. Because all app services are priced based on this service plan only. 
+
+Scale up -> change pricing plan
+Scale out -> auto scaling rule. 
+
+
+We can add our custom rule, If my app service's hosting machine
+
+ CPU percentage is above 70%
+ for the continous 10 mins
+ add another instances
+ Maximum you can add 3 instances
+ after adding instances wait for 5(cool down time) mins to allow the changes to take effect. 
+
+This is sample rule, you can also configure scale in rule to reduce the instances as well. 
+
+If you see the service plan you can see S1:3. Means now your app service plan is running 3 machines . 
+
+Go to Run history -> Resource instance count will show number of machine instances running 
+
+Operation name -> autoscaling done log will be there 
+
+
+Azure Web apps -> Custom domains
+
+We need to get custom domains from 3rd party vendors like goDaddy. 
+
+Go to custom domains in the app service -> Add Custom domain -> enter domain and click validate. 
+
+Now Azure will give two types of record "A" and "TXT" records, you need to copy the value from Azure to your 3rd party vendor. This will ensure you own that domain. 
+
+After update this, wait for 10 mins to take changes effect. then again go to azure and add custom domain and validate. Now azure should show validated custom domain, and then add custom domain. Now if you give your custom domain then your web app should be shown. 
+
+Still we need to add SSL certificates to this custom domain otherwise connection is not secure error will be shown in the browser. 
+
+
+To do this Go to App service -> TLS/SSL settings -> Private key certificates (.pfx) (usually we need to buy certificate, but we are going to use a certificate provided by azure now) 	
+
+Add custom domain name and certificate friendly name. You cannot download this certificate as this is managed by app service. 
+
+Now go back to custom domain -> Add binding ->  Choose private certificate thumbprint -> TLS/SSL Type SNI SSL -> add binding 
+
+
+
+Deployment slots
+
+Deployment slots are available in Standard and premium app service plan 
+
+With Deployment slots you have ability to validate application changes in the staging deployment slot and you can swap the staging slot with the production slot. 
+
+This helps eliminate the downtime for your application during deployment 
+
+you can easily swap deployment slots in case of issues. 
+
+
+Deployment slots will have unique URLs just like differents webapps
+
+
+Add Deployment slot, then we have option to configure how much traffic to go to another deployment slot. While publishing, we need to select app service and expand deployment slot and select particular deployment slot and then publish 
+
+We have swap option to use which deployment slot. 
+
+
+When we swap environment we need to wait for warm up time to take effect the swap. We can improve this warmup time by setting up custom warm up 
+
+
+Deployment slots with Databases
+
+While creating app config click on "Deployment slot setting" checkbox while create app configuration . If we do that then while doing a deployment slot, this will not be copied to new deployment slot. 
+
+
+Azure App configuration
+
+We have seen that we have configured connection string in web application (configuration section ) itself. But we may have multiple configuration that can be saved in centralized place called App Configuration
+
+
+Create New resource -> App configuration ->  After resource created -> Configuration explorer -> Create -> key-value ->  give connecting string key value pair and save
+
+
+To use this we need to install AzureAppConfig nuget package in our project 
+
+App configuration -> Access Keys -> we can take primary key or secondary key. 
+
+var constr='primary key copied from azure app config'
+
+builder.Host.COnfigureAppCOnfiguration(builder => {
+builder.AddAzureAppConfigration(constr);
+})
+
+
+
+Feature flag 
+
+This allows us to toggle on and off based on the need. 
+
+App COnfiguration -> Feature manager -> Add -> name -> Apply 
+
+Install Microsoft.FeatureManagement nuget package.
+
+on builder services in program.cs 
+builder.Services.AddFeatureManagement();
+
+builder.Host.COnfigureAppCOnfiguration(options => {
+options.connect(constr).UseFeatureFlags();
+})
+
+
+in service 
+
+private readonly IFeatureManager _featureManger
+
+public async Task<bool> IsBeta()
+{
+return await _featureManager.IsEnabledAsync("beta");
+}
+
+
+We can use this featureflag to control controllers or actions like below
+
+using Microsoft.FeatureManagement;
+
+[FeatureGate(MyFeatureFlags.FeatureA)]
+public IActionResult Index()
+{
+}
+
