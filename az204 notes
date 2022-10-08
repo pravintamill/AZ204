@@ -284,6 +284,25 @@ in service
 
 private readonly IFeatureManager _featureManger
 
+
+
+Section 4
+
+Azure Function is serverless , we need to associate Storage account to work with Azure Functions
+
+We can choose Plan type as 
+	* Consumption based (serverless)
+	* App service plan 
+	* Functions Premium 
+
+
+Create a function 
+
+Development envioronment - Develop in portal
+Select a template -  HTTP trigger
+Template Detail - Give name for function 
+
+Code + Test -> some template will be already written 
 public async Task<bool> IsBeta()
 {
 return await _featureManager.IsEnabledAsync("beta");
