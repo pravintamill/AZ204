@@ -318,3 +318,257 @@ public IActionResult Index()
 {
 }
 
+If we create azure function from visual studio and publish to azure then we cannot edit code from azure. we can only edit function.json file. 
+
+Same as Webapps, we can also add connection string in function app. Go to FunctionApp -> Configuration -> Connection String -> 
+
+
+Environment.GetEnvironmentVariable("SQLAZURECONNSTR_SQLConnectionstring") , SQLAZURECONNSTR is mandatory to include before your connectionstring 
+
+
+
+Section 5 
+
+Sudo docker images - will give list of docker available on our linux machine
+
+sudo docker run --name appngnix -p 80:80  -d nginx
+
+
+
+(first 80 is the port for the container, container will listen to port 80 and that port is alinged with the Virual machine's port 80)  
+
+
+sudo docker ps - this will give running dockers 
+
+What is docker file -> docker file will have information for the docker runtime on how to build an image. 
+
+Here we will create publish version of sqlapp application and copy to home/linuxuser via the winscp tool. 
+
+
+SAMPLE DOCKER FILE 
+
+FROM  mcr.microsoft.com/dotnet/aspnet:6.0
+WORKDIR /app
+COPY..
+EXPOSE 80
+ENTRYPOINT ["dotnet","applicationname.dll"]
+
+
+
+to build docker use below command 
+
+sudo docker build -t sqlapp . (docker file should be in your current working directory)
+
+to stop and container
+
+sudo dockefr stop 9ec (this can be full id of the container or first 3 characters)
+
+
+to remove container from docker runtime 
+
+sudo docker rm d90
+ 
+
+What is Azure container registory?
+
+It is same as docker hub its a private version repositroy. 
+
+
+Go to Azure container registory -> Access keys -> Enable Admin user then you can see username and password to connect to  container registory
+
+
+Install Azure CLI in Linux 
+
+
+To login to azure container registory 
+
+az acr login --name registoryname --username uname --password 
+
+login succeeded 
+
+to tag our image on this container registory 
+
+sudo docker tag sqlapp appregistory300030.azurecr.io/sqlapp(sqlapp is image name)
+
+sudo docker push appregistory300030.azurecr.io/sqlapp
+
+
+
+Azure Container instances	
+
+Once we create an image then we need to create publish build of the application and copy that publish files into linux machine, then create a docker file end run the docker.
+
+This can be simplified using container instances, once your image is ready map it with an instance then you have your image up and running, underlying infrastructre is managed for you. 
+
+1. Provides a fast and easy way to deploy containers
+2. This is managed instance, docker installation and configuration everything will be managed for you (underlying infrastructure)
+3. ACI can also get their own public IP and DNS name 
+4. You can also persist data via the use of azure file shares. 
+
+
+Ceate Resource -> Container Instance -> 
+Image source 
+	* Quickstart images (Microsoft)
+	* Azure Container Registry 
+	* Other registry (from docker hub)
+We can create image and its tag, which one we need . You needed to enable admin user in Azure container registory to access that in Container instances 
+
+Networking Type -> public / Private 
+Port -> 80 we are exposing on port 80. 
+
+Review and create will create a container based on the image we gave.
+
+Go to containers we can see state of the container, properties, logs etc. 
+
+
+Multi Stage builds. 
+
+Remember, the size of the image is based on the instruction we give to that image. For example in nginx image is lightweight. it will only have bare minimum things to serve as a web server will not have entire linux features. 
+
+Similarly, if you see dotnet images, it will have dotnet runtime so it will be bigger in size. 
+
+
+
+Instead of doing build and get publish version on our local and then port that to image we can give this as instruction to docker file 
+
+
+FROM mcr.microsoft/dotnet/sdk:6.0 
+WORKDIR /source  -- we are creating a working directory 
+COPY *.csproj ./
+
+COPY ..
+RUN dotnet restore 
+
+COPY .. 
+RUN dotnet publish -c Release  -o out
+
+
+ FROM  mcr.microsoft.com/dotnet/aspnet:6.0
+WORKDIR /app
+COPY..
+EXPOSE 80
+ENTRYPOINT ["dotnet","applicationname.dll"]
+
+
+
+If we run this as it is. this will create layer by layers. we can create stages by doing this if that stage is done then it will remove that layer 
+
+
+FROM mcr.microsoft/dotnet/sdk:6.0  AS build 
+WORKDIR /source  -- we are creating a working directory 
+COPY *.csproj ./
+
+COPY ..
+RUN dotnet restore 
+
+COPY .. 
+RUN dotnet publish -c Release  -o out  -- this step create an out folder without source folder
+
+
+ FROM  mcr.microsoft.com/dotnet/aspnet:6.0
+WORKDIR /app
+COPY --from=build /source/out .   -- we are copying out folder 
+EXPOSE 80
+ENTRYPOINT ["dotnet","applicationname.dll"]
+
+
+
+
+Azure container groups 
+
+
+This is a collection of containers that get scheduled on the same host machine
+
+Example, if we have two containers one for UI and one for backend 
+
+The containers then share same lifecycle, resources, local network and storage volumes
+
+The deployment of a container group is done via a Resource Manager template or a YAML file. 
+
+you can persist data via the use of Azure file shares. 
+
+
+3306 is port that will expose mysql 
+
+
+sudo docker run --name=mysql-instance -p 3306:3306 --restart on-failure  -d -e MYSQL_ROOT_PASSWORD=Azure123 mysql (name of my image) 
+
+
+sudo docker exec -it mysql-instance mysql -uroot -p
+upon prompt give password. now you can see its connected to MySQL, you can run sql commands from putty itself
+
+
+creating a custom image of mysql.. 
+
+FROM mysql as base 
+ENV MYSQL_ROOT_PASSWORD=Azure123
+ENV MYSQL_DATABASE=appdb
+COPY 01.sql /docker-entrypoint-initdb.d/
+
+
+
+1. We need to replace connection string server name with localhost for db. Because it will be hosted on same server. 
+
+remove containers 
+
+	i. sudo docker stop containername
+	ii. sudo docker rm containername
+remove images
+	i. sudo docker images rm imagename
+
+yaml file 
+
+apiVersion: 2022-10-10
+location: northeurope
+name: sqlAppGroup
+properties: 
+  containers: 
+   properties:
+     image: regristoryname/imagename:latest
+	resources:
+	 requests:
+	  cpu: 1
+	   memoruyInGb: 1.5
+	    ports: 
+		- port: 3306
+-name: web		
+properties: 
+  containers: 
+   properties:
+     image: regristoryname/image2name:latest
+	resources:
+	 requests:
+	  cpu: 1
+	   memoruyInGb: 1.5
+	    ports: 
+		- port: 80
+osType: Linux
+ipaddress: 
+	type:Public
+	ports:
+	 -protocol: tcp
+	   port: 80
+	 imageRegistryCredentials:
+	   - server: companyregistry.azurecr.io
+	    username: companyregistry
+	    password: dxzy
+type: Microsoft.containerInstance/containerGroups
+
+
+Open Cloud shell
+
+Advanced settings
+
+File share, storage account - create new 
+
+Upload yml file in cloud shell.. 
+
+
+az container create --resource-group resourcegroupname --file deployment.yml
+
+
+based on the above yml file, this container group will have two container instances
+
+
+
+
