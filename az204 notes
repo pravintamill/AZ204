@@ -570,5 +570,49 @@ az container create --resource-group resourcegroupname --file deployment.yml
 based on the above yml file, this container group will have two container instances
 
 
+Implementing Azure security
+
+
+Azure Active Directory? 
+
+Azure Active directory is an identity provider and access management service.
+
+Usage: This can be used as an identity provider for Azure, Microsoft 365 and other SaaS products as well. 
+
+You can manage identities such as users, groups and even applications
+
+Manage security aspects when it comes to your identities
+
+
+Pricing 
+
+Free - User and group management. 
+
+Premium P1 - Dynamic groups, hybrid identities, self-service password reset for on-premise users.
+
+Premium P2 - Azure AD identity protecion and privileged identity Management. 
+
+
+Role Based Access control
+
+A user or Application or Azure object first needs to authenticate itself to tell who it is and then role based authentication determine what that can access
+
+Some Predefined roles are below
+
+Contributor
+Owner
+Reader 
+
+
+What is Application Object?
+
+Lets say we want our application to access Storage account. We have two ways to achieve this
+	1. save access keys of storage account in our application then application will authenticate itself
+	2. We can create appilcation object and that object will be given some access then it will authenticate and access storage account. Advantage of using application object is that we can give multiple storage account access to our application objects. 
+
+
+Microsoft Identity platform 
+
+The platform helps to build applications that users and customers can sign in using their Microsoft identities or social accounts
 
 
