@@ -616,3 +616,267 @@ Microsoft Identity platform
 The platform helps to build applications that users and customers can sign in using their Microsoft identities or social accounts
 
 
+
+Azure Active Directory -> App registrations -> New registration - > Enter name "BlobApp" and click Register 
+
+Go to Storage account -> Access control -> Add role assignment -> Reader role -> Select member -> select "BlobApp" -> Review and assign
+
+
+Go to Storage account -> Access control -> Add role assignment -> Storage Blob Data Reader role -> Select member -> select "BlobApp" -> Review and assign
+
+
+We need couple of properties to connect with bolb now. 
+
+Application / Client ID : Overview section of Application object
+Tenant ID		: Overview section of Application object
+Client secret		: Certificates and secrets  section of Application object 
+
+Certificates and secrets -> Create new client secret -> Now you will see some secret please save it in secure place, once you navigate away you cannot see this again. 
+
+
+
+String clientId ="";
+string tenantId="";
+string clientSecret="";
+
+string blobUri="";
+string filePath="c:/temp/";
+
+ClientSecretCredentials clientSecretCredential = new ClientSecretCredentials(tenantId, clientId, ClientSecret);
+BlobClient blobClient = new BlobClient(new Uri(blobUri, ClientSecretCredentials );
+await blobClient.DownloadToAsync(filepath);
+console.WriteLine("The blob downloaded")
+-- should instal Azure.Identity;
+
+
+
+Microsoft Graph
+
+Is an API https://graph.microsoft.com to provide access to rich, people-centric data and insights in the microsoft lcoud including Microsoft 365, Windows, and Enterprise Mobility + security. 
+
+We are going to see how to invoke graph API using application object. In previous example, we were able to create application object and then on then blob storage account we give access control to that application object. 
+
+But in order use this API using postman tool, postman is an external tool. For that we need to go application object -> API permissions 
+
+By default Microsoft Graph -> User.Read (Delegated Type ) permission 
+
+Types of Permission 
+	1. Application Permission (Runs on behalf of the application)
+	2. Delegated permission  (Runs on behalf of the user )
+
+For our graph api we delete existing default permission and create application permission and -> User -> User.Read.All (Earlier it was User.Read)
+
+Status -> Not granted for Default -> Click on Grant admin consent for Default Directory 
+
+
+1. Register an application in Azure AD
+2. Provide permissions
+3. Provide Admin consent
+4. Call the Microsoft authentication service
+5. Get an access token
+6. Accessa resource using the token 
+
+
+how to get access key? 
+
+Create a post request in postman. 
+
+Go to postman application object -> Overview -> Oauth 2.0 token endpoint (v2)
+
+Enter URL to postman 
+
+Notice URL: https://login.microsoftonline.com/70c0xzy/oauth2/v2.0/token  -- after domain we see some random string this is directory 
+
+x-www-form-urlencoded
+
+Key               value
+grand_type        client_credentials
+client_id         from postman app object overview
+client_secret     Create new secret from postman and copy here
+scope             https://graph.microsoft.com/.default
+
+
+Send- > 
+
+Token type is Bearer token 
+
+
+To access graph API
+
+Create a get request from postman as below
+
+Get : https:/graph.microsoft.com/v1.0/users 
+
+Headers
+
+Authorization Bearer "Token copied from post request"
+
+Note: even there is proper permission isn't provided also we can get permission from microsoft, but that token wont have permission to access your resources.
+
+
+
+Update user
+
+1. Add Users.Write.All permission
+2. Add -> Click on Grant admin consent for Default Directory 
+3. Generate token (to get updated permission
+4. Make a patch call -> https:/graph.microsoft.com/v1.0/users/userid
+5. Add header values with Authorization token 
+6. Body -> Raw -> JSON {"givenName":"Username"}
+
+
+Key Vault 
+
+We have sensitive information like 
+	* Encryption keys
+	* Certificates
+	* Secrets 
+
+We need a safe way to store this, usually we need special software to store that and server to maintain that software.  
+
+We have Azure Key vault
+
+1. Create new key vault 
+2. Go to Keys -> Create Generate Import Key 
+3. Create new project 
+4. Install Azure.Security.KeyVault.Keys
+5. Create new app registration  
+6. Appvault -> Access Policies -> Add Policy -> Key Permission (get, Encrypt, Decrypt)  
+	Select Principal -> Keyapp -> Add -> Save 
+Now this permission is 
+tring clientId ="";
+string tenantId="";
+string clientSecret="";
+
+string KeyVaultURL=""; -- from Keyvault overview section 
+string keyName="appkey"; --name of your key in azure 
+string textToEncrypt ="This is a secret text";
+
+ClientSecretCredentials clientSecretCredential = new ClientSecretCredentials(tenantId, clientId, ClientSecret);
+KeyClient keyClient = new KeyClient(new Uri(keyVaultURL));
+
+var key = keyClient.GetKey(keyName);
+var cryptoClient = new CryptographyClient(key.Value.Id, clientSecretCredential );
+byte[] textToBytes = Encoding.UTF8.GetBytes(textToEncrypt);
+EncryptResult result = cryptoClient.Encrypt(EncryptionAlgorithm.RsaOaep, textToBytes);
+console.WriteLine("The Encrypted string ")
+  
+console.WriteLine(Convert.ToBase64String(result.Ciphertext));
+
+
+byte[] cipherTOBytes = result.Ciphertext;
+DecryptResult textDecrypted = cryptoClient.Decrypt(EncryptionAlgorithm.RsaOaep,cipherTOBytes )
+
+console.WriteLine("The Decrypted string ")
+console.WriteLine(Encoding.UTF8.GetString(textDecrypted.Plaintext);
+
+
+
+Secrets 
+======================================================
+
+1. Install Azure.Security.KeyVault.Secrets
+
+
+String clientId ="";
+string tenantId="";
+string clientSecret="";
+
+ClientSecretCredentials clientSecretCredential = new ClientSecretCredentials(tenantId, clientId, ClientSecret);
+
+string keyVaultUrl="";
+string secretName ="dbConnectionString" -- secret name 
+SecretClient secretClient = new SecreClient(new Uri(keyVaultUrl), clientSecretCredential)
+
+var secret = secretClient.GetSecret(secretName );
+string connectionString = secret.value.value;
+
+In Azure, Secret should have Get permission. 
+
+
+Managed Identities 
+
+A common challenge for developers is the management of secrets, credentials, certificates, and keys used to secure communication between services. Managed identities eliminate the need for developers to manage these credentials.
+
+While developers can securely store the secrets in Azure Key Vault, services need a way to access Azure Key Vault. Managed identities provide an automatically managed identity in Azure Active Directory for applications to use when connecting to resources that support Azure Active Directory (Azure AD) authentication. Applications can use managed identities to obtain Azure AD tokens without having to manage any credentials.
+
+
+If you host your application on Azure VM, then you can make use of Managed identity, where you dont have to store anything including client secret, client ID etc. This managed identity will be given access to the azure resources. This works on azure services. If your application is hosted on outside Azure environment we can use Application object. 
+
+
+1. Configure managed Identity for your VM , Go to VM -> Identity -> System assigned -> Status -> On -> Save 
+
+(you can see this alert appvm will be registered with Azure Active directory. Once it is registered, appvm can be granted permissions to access resources protected by Azure AD. Do you want to enable the system assigned managed identity for appvm?)
+
+2. Storage account -> Access control -> Add role assignment -> add memeber -> select appvm (which is our managed identity) 
+3. TokenCredential will take access token from various places like Environment, ManagedIdentity, AzureCli, SharedTokenCache etc. 
+4. Download RDP for VM, right click and edit -> Local Resources -> More -> Drives -> C:\   (so local C drive files are copied to VM ) 	  
+
+string blobUri="";
+string filePath="c:/temp/";
+TokenCredential tokenCredential = new DefaultAzureCredential() 
+ 
+BlobClient blobClient = new BlobClient(new Uri(blobUri, tokenCredential );
+await blobClient.DownloadToAsync(filepath);
+console.WriteLine("The blob downloaded")
+-- should inclue azure.core
+
+
+
+Managed Identitiy - Getting access token
+
+We are going to use Metadata API to get the access token, this is the way to get access token from ManagedIdentity 
+
+169.254.169.254
+
+
+
+
+string token Uri = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=http://storage.azure.com"
+
+HttpClient client = new HttpClient ();
+client.DefaultRequestHeaders.Add("Metadata","true");
+HttpRespoinseMessage response = await client.GetAsync(tokenUri);
+string content = await response.Content.ReadAsStringAsync();
+
+Dictionary<string, string> values = JsonConvert.DeserializeObject<Dictionary<string, string>(content);
+foreach(KeyValuePari<string, string> pair in values)
+{
+Console.WriteLine("key "+ pair.Key);
+Console.WriteLine("Value "+ pair.Value);
+}
+
+
+string BlobUri ="";
+HttpClient BlobClient = new HttpClient();
+BlobClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", values["access_token"]);
+bolbClient.DefaultRequestHeaders.Add("x-ms-version","2017-11-09"); // To do a blob call, we need to provide mentioned information, refer microsoft documentation 
+HttpRespoinseMessage blobresponse = await BlobClient.GetAsync(BlobUri );
+string blobContent = await blobResponse.Content.ReadAsStringAsync(); 
+console.WriteLine(content);
+
+
+
+
+Azure Managed Identity
+
+Instead of giving clientId, secret etc, we can make use of Managed Identity for Product Service project. 
+
+App service -> Identity -> System Assigned -> on -> save 
+
+In Azure keyvalue my connection string is saved. 
+Key Vault -> Access Policies ->  Get access -> Select principal -> sqlapp (appservice name) ->save
+
+ 
+
+Managed Identity Types
+
+1. System Assigned (this is assigned on the resource itself, like VM, Resource group etc)
+2. User Assigned (This is a seperate resource)
+
+Use of User assigned identity is even when the resource is deleted this identity will stay. And we can assign one identity to multiple resources
+
+You have to create managed identity and assign it to VM, then on the Storage account we need to give read and blob read permission to that managed identity. 
+
+
+
