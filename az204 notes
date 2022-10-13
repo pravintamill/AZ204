@@ -880,3 +880,49 @@ You have to create managed identity and assign it to VM, then on the Storage acc
 
 
 
+User Assinged Identity - Powershell
+========================================
+
+-- on terminal Install-Module Az.ManagedIdentity
+
+Connect-AzAccount 
+
+$ResourceGroupName="app-grp"
+$IdentityName="app-identity"
+$VmName ="appvm"
+
+
+New-AzUserAssignedIdentity -ResourceGroupName $ResourceGroupName -Name $IdentityName -Location "North Europe"
+
+$Identity=Get-AzResource -Name $IdentityName -ResourceGroupName $ResourceGroupName 
+$Id=$Identity.Id 
+
+$vm=Get-AzVm -ResourceGroupName $ResourceGroupName -name $VmName 
+Update-AzVM -ResourceGroupName $ResourceGroupName  -VM $Vm -IdentityType UserAssigned -IdentityId $Id
+
+
+Managed Identity - Powershell 
+===========================================
+Connect-AzAccount
+
+$ResourceGroupName="app-grp"
+$VmName="appvm"
+
+$Vm=Get-AzVM -ResourceGroupName $ResourceGroupName -Name $VmName 
+
+Update-AzVm -ResourceGroupName $ResourceGroupName -VM $vm -IdentityType SystemAssigned 
+
+
+PowerShell - Storage Account 
+===============================================
+
+$StorageAccountName = "appstore5050"
+$ResourceGroupName = "app-grp"
+
+$StorageAccountKey= (Get-AzStorageAccount -ResourceGroupName $ResourceGroupName -AccountName $StorageAccountName) | Where-Object {$_.KeyName -eq "key1"}
+$StorageAccountKeyValue= $StorageAccountKey.Value  
+
+$KeyVaultName = "appvault20303"
+$SecretValue = ConvertTo-SecureString $StorageAccountKeyValue -AsPlainText  -Force 
+
+Set -AzKeyVaultSecret  -VaultName $KeyVaultName -Name $StorageAccountName -SecretValue $SecretValue
