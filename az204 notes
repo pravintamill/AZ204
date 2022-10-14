@@ -926,3 +926,153 @@ $KeyVaultName = "appvault20303"
 $SecretValue = ConvertTo-SecureString $StorageAccountKeyValue -AsPlainText  -Force 
 
 Set -AzKeyVaultSecret  -VaultName $KeyVaultName -Name $StorageAccountName -SecretValue $SecretValue
+
+Section 10 
+###########################################################
+Implement Azure Security - Authentication and Authorization
+===========================================================
+
+Microsoft Identity Platform
+
+Where Azure Active Directory is one of the Identity provider, we are not restricted to use only AAD. We can also make use of other external identity providers like Facebook, Gmail, LinkedIn etc
+
+Basically we are going to get a token from external identity providers and provide access based on the token. 
+
+
+Microsoft Authentication Library
+--------------------------------
+
+Enable developers to acquire access tokens from the Identity platforms
+This can be used to authenticate users and allow secure access to APIs
+It also maintains the token cache and refresh tokens when they are about to expire. 
+
+
+OAuth2
+==============================================================
+
+An application is accessing some resource on behalf of the user is what OAuth is all about. This process is called Authorization work flow. 
+
+
+oauth.net/2/ will have more information including grant types
+	* Authorization code
+	* PKCE
+	* Client Credentials 
+	* Device code
+	* Refresh token
+
+
+Click on client credentials you can notice what is required to make client credentials like grant_type 
+
+POST /token HTTP/1.1
+Host: authorization-server.com
+ 
+grant_type=client_credentials
+&client_id=xxxxxxxxxx
+&client_secret=xxxxxxxxxx
+
+This is what we followed when we use Azure Active directory
+
+
+OAuth2 - Authorization Code Grant 
+==============================================================
+
+
+Resource Owner - This is the user who has access to the protected resource
+Client		- This is the application requesting access to the resource  
+Resource Server - In Azure, this can be Web API that will allow access into the Azure resource 
+Authorization Server - Microsoft Identity platform is the authorization server 
+
+
+How does Authorization code flow works?
+
+1. Application makes a call to authorization server  and will provide callback URI to Authorization server. When  Authorization server has some response to provide it can use this call back uri
+2. The authorization server sends the authorization code to the application. This authorization code is just the initial step in the process. The application then needs to use the authorization code to get the access token 
+(Note the authorization code is viewable in the browser, but later in the process of getting the access token with the use of the authorization code is done by the application in the backend. This is for security reason to avoid man in middle attack) 
+
+
+
+
+The Authorization Code Flow
+
+Here’s each query parameter explained:
+
+response_type=code - This tells the authorization server that the application is initiating the authorization code flow.
+client_id - The public identifier for the application, obtained when the developer first registered the application.
+redirect_uri - Tells the authorization server where to send the user back to after they approve the request.
+scope - One or more space-separated strings indicating which permissions the application is requesting. The specific OAuth API you’re using will define the scopes that it supports.
+state - The application generates a random string and includes it in the request. It should then check that the same value is returned after the user authorizes the app. This is used to prevent CSRF attacks.
+When the user visits this URL, the authorization server will present them with a prompt asking if they would like to authorize this application’s request.
+
+
+
+Use Authentication in Web project
+============================================================
+
+1. Create web app using .net core and add below configuration in appsettings.json
+   "AzureAd": {
+   "Instance" : "https://login.microsoftonline.com",
+   "TenantId" : "",
+   "ClientId" :""
+  }
+2. Install Microsoft.Identity.Web  
+3. Program.cs -> builder.Services.AddMicrosoftIdentityWebAppAuthentication(builder.Configuration)  // This will help us our application to authenticate itself automatically. 
+app.UseAuthentication();
+4. Index.cshtml.cs -> Add authorize attribute on class level
+5. Go to Application object -> authenticaton -> Add platform -> Configure platform -> Enter the redirect URL 
+Then Select the tokens you wold like to be issued by the authorization endpoint: -> ID tokens (used for implicit and hybrid flows)
+6. Now our web application is asking us to login to Azure, lets provide credentials and login 
+7. Now browser is asking permissions requested. (consent on behalf of your organization) 
+Remember, in application object we gave "Grant admin consent for default directory". This is because postman has no ability to get this consent (we are not logged in as azure user account). But this case we did not enabled it, so our application is prompting user permission 
+Another important point is postman is having application Type permission, means our postman itself should have permission. In this case we have delegated permission, means on user's behalf application will authorize. 
+
+After giving our consent we are getting below error. The redirect URI https://localhost:7046/signin-oidc specified in  THE REQUEST DOES NOT MATCH THE REDIRECT UriS CONFIGURED FOR THE APPLICATION 
+
+
+"AzureAd": {
+   "Instance" : "https://login.microsoftonline.com",
+   "TenantId" : "",
+   "ClientId" :""
+   "CallbackPath": "/signin-oidc"
+   "SignedOutCallbackPath": "/signout-oidc"
+
+  }
+
+the same has to be configured Authentication section of Application object
+Redirect URL
+https://localhost:7046/signin-oidc
+Front Channel logout url 
+https://localhost:7046/signout-oidc
+
+oidc - OpenIDConnect We are using OpenIdConnect to authenticate then Oauth to authorize. 
+
+
+
+Adding Sign-out 
+===========================================================
+
+1. For sign-in and sign-out we need to use the following library Microsoft.Identity.Web.UI
+2. builder.Services.AddControllersWithViews()
+3. Place AddRazorPages below with opions
+
+builder.Services.AddRazorPages().AddMvcOptions(options => 
+{
+var policy = new AuthorizationPolicyBuilder()
+	.RequireAutheticatedUser()
+	.Build();
+	options.Filters.Add(new AuthorizeFilter(policy));
+)}.AddMicrosoftIdentityUI();
+
+// add required library using if error is popping up 
+
+4. Remove Authorize attribute, because we are now going to use authenticated users only 
+5. app.UseEndpoints(endpoings => 
+endpoints.MapControllerRoute(
+name: "default",
+pattern: "{controller=Nome}/{action=Index}/{id?}"))
+
+6. Add new Scaffolded Item -> Go to Identity (it will add default nuget packages that are necessary for this) ->  Choose Account\Login  and Account\Logout -> Click on Add new Data context class ->  Add SQLLite instead on SQL server. 
+
+7. Areas -> Identity -> Data (AuthAppContext) 
+		     -> Pages -> Account (Login and logout.cshtml) 
+8. Program.cs also sqllite configuration and identity configuration will be added. 
+9. To signout  asp-area="MicrosoftIdentity" asp-controller="Account "  asp.action="SignOut" 
