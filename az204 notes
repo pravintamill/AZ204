@@ -1076,3 +1076,175 @@ pattern: "{controller=Nome}/{action=Index}/{id?}"))
 		     -> Pages -> Account (Login and logout.cshtml) 
 8. Program.cs also sqllite configuration and identity configuration will be added. 
 9. To signout  asp-area="MicrosoftIdentity" asp-controller="Account "  asp.action="SignOut" 
+
+
+Getting user claims?
+
+Claims is nothing but information about users. 
+In authentication we enabled ID tokens through which we will get information about users. 
+
+@using System.Security.Claims
+
+@foreach(var _claim in ((ClaimsIdentity) User.Identity).Claims)
+{
+
+<tr>
+<td>@_claim.Type</td>
+<td>@_claim.Value</td>
+</tr>
+}
+
+
+
+Getting Group claims 
+============================================================
+
+We can create groups, add members. and give access to that group, so that whoever assigned to that group get same level of permission 
+
+If application need certain role to access the application then the application can check what group user is assigned to and get their role based on that. 
+
+To do that go to AuthApp -> TokenConfiguration -> Add Group claim  -> Select group types to include in Access, ID and SAML tokens -> select "Security groups"
+ 
+Customize token properties by type -> ID -> Group ID (is default )
+				      Access -> Group ID  -> Add
+
+
+Go to Manifest section (it is a json file having information about our cliam) go and check groupMembershipClaims : "SecurityGroup" 
+
+No in our claim program we should have got this group ID . We can make note of group ID which we are looking for and take action based on it. 
+
+Apart from that we can also Add optional claim -> ID -> email, givenname
+Turn on the Microsoft graph email, profile permission(required for claims to appear in token)  
+
+
+Getting An Access token.
+===============================================================
+
+1. Lets say we want out applicationto access storage account to perform some action
+
+But now, we are authenticating user and giving users permission to access storage account, but application need certain permission to access storage account. 
+
+1. To do that API permissions ->  Add permission -> Azure storage -> Delegated permission (only this is possible) -> Permission -> user_impersonation (application will act like user and get permission to access storage account) 
+2. Also Authentication -> Access tokens (used for implicit flows) 
+
+3. program.cs 
+
+string[] scope = new string[] {"https://storage.azure.com/user_impersonation"}
+builder.Services.AddMicrosoftIdentityWebAppAuthentication(builder.Configuration, "AzureAd")
+		.EnableTokenAcquisitionToCallDownstreamApi(scope);
+		.AddInMemoryTokenCaches();
+Now we are getting token from application like below
+
+private readonly ITokenAcquisition _tokenAcquistion;
+public string accessToken;
+
+public IndexModel(ITokenAcquisition tokenacqu)
+{
+_tokenAcquistion = tokenacqu
+}
+
+public Task OnGet()
+{
+string[] scope = new string[] {"https://storage.azure.com/user_impersonation"}
+accessToken = await _tokenAcquisition.GetAccessTokenForUserAsync(scope)
+}
+
+
+Not its showing error  "MsalClientException: One client credential type required either: ClientSecret, Certificate OR clientAssertion must be defined when creating a confidential client. ONly specify one. 
+
+Go to appsetting.json
+
+"ClientSecret" : "secretfromAzure"
+
+
+
+Using Access Token 
+====================================================================================================
+
+
+ public Task OnGet()
+{
+//string[] scope = new string[] {"https://storage.azure.com/user_impersonation"}
+//accessToken = await _tokenAcquisition.GetAccessTokenForUserAsync(scope)
+
+TokenAcquisitionTokenCredential tokenAcquisitionTokenCredential = new TokenAcquisitionTokenCredential(_tokenAcquisition);
+Uri blobUri = new Uri("");
+BlobClient blob = new BlobClient(blobUri, tokenAcquisitionTokenCredential );
+
+
+MemoryStream ms = new MemoryStream(ms);
+blobContent = sr.ReadToEnd();
+
+}
+
+--install Azure.Storage.Blobs from nuget package. 
+
+Now we can get blobcontent to our web application..
+
+In order to publish to Azure web app, we need to update sign in and signout properties in Application object with new web app url. 
+
+
+Publish as Zip option.  
+
+
+Accessing Blob storage from Postman
+
+1. Select Storage account and give access to postman application object with reader and blob read access
+2. Goto Postman and in the token post request change the scope alone with below
+https://storage.azure.com/default 
+3. Send will get us the access token 
+4. Go to storage account we will get bolburi
+5. When we give access token in the header section we will get contents from azure blob. 
+
+
+
+Creating web api & Publish is normal process. Then add authentication 
+=============================================================
+1. Go to manifest -> accessTokenAcceptedVersion -> change null to 2 . 2 means supporting oauth2.0 , null means oauth. 
+
+2. In project install Microsoft.Identity.Web from nuget 
+3. Program.cs -> builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration,"")
+
+
+3. In appsettings.json -> add AzureAd section with clientid, TenantId, Instance details
+4. App.userAuthentication() and App.UseAuthorization();
+5. Now accessing URL will give 401 error 
+(as our postman tool cannot login as user, we need to create an application object for API project ProductAPI)
+6. Go to "Expose an API " -> Application ID URI -> SET -> will populate one api(scopes defined by this API . Define custom scopes to restrict access to data and functionlaity protected by the API. An applicationthat requires access to parts of this API can request that a user or admin consent to one or more of these.
+Adding a scope here creates only delegated permissoins. If you are looking to create application-only scopes, use 'App roles' and define app roles assignable to application type. Go to app roles. 
+7. Copy the api and paste it in scope when getting access token 
+
+8. GO to post man -> API permission ->  select our Produt API -> Application permission (we have this ) -> Permissions -> ProductAccess -> Add permission -> Add Admin consent	  
+ 
+Go to Product API application object and Add roles ->  
+  
+
+
+Invoking API from console application 
+
+
+IcConfidentialClientApplication cca ;
+
+string clientid="";
+string clientSecret="";
+string tenantId = "";
+
+cca = ConfidentialClientApplication.Create(clientId)
+	.WithTnenatId(tenantId)
+	.WithClientSecret(clientSecret)
+	.Build();
+
+string[] scopes = new string[] {"api/xy/.default"} 
+AuthenticationResult result = await cca.AcquireTokenForClient(scope).ExecuteAsync();
+ 
+string accessTOken = result.AccessToken;
+Console.WriteLine(accessToken);
+
+string apiURL="WebAPI url";
+
+HttpCLient client = new HttpClient();
+client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer" , accessToken );
+
+
+HttpResponseMessage responseMessage = await client.SendAsync(apiUrl);
+string content = await resonpseMessage.Content.ReadAsStringAsync();
