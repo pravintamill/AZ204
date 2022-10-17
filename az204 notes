@@ -1248,3 +1248,40 @@ client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bear
 
 HttpResponseMessage responseMessage = await client.SendAsync(apiUrl);
 string content = await resonpseMessage.Content.ReadAsStringAsync();
+
+
+Section 11
+############################################################
+
+Azure Monitor
+===========================================================
+
+Search -> Monitor -> Metrics -> select any resource and apply (we can see many metrics types, 
+	* CPU credits Consumed
+	* CPU credits Remaining
+	* Available Memory Bytes
+	* Data Disk Bandwidth Consumed percentage
+	* Data Disk IPOs Consumed Percentage
+	* Data Disk Max Burst Bandwidht etc 
+We can save it to Dashboard 
+
+
+Activity Log -> This will have administrative activities are recorded here. 
+
+
+Configure alerts
+==============================================================
+
+1.   Select scope (This is choosing your resource - VM for example)
+2.  -> Condition (selecting your condition, ex CPU % reach 70 # 
+      Signal type ->  (All, Metrics, Log, Activity Log)	 -> Metrics -> Network -> 
+		alert logic -> Static -> Threshold value 100 B
+
+Evaluated based on Aggregation granularity 5 mins, Frequency of evaluation 5 mins
+3. Actions -> Create new action group -> 
+				Notification type -> Email/SMS message/Push / Voice  -> Give your email id 
+				
+4. Details -> Severity (Informational)	
+				Actions -> 	
+
+5. After 5 mins -? there will be new alert logged in alerts section. 
