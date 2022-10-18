@@ -1285,3 +1285,59 @@ Evaluated based on Aggregation granularity 5 mins, Frequency of evaluation 5 min
 				Actions -> 	
 
 5. After 5 mins -? there will be new alert logged in alerts section. 
+
+
+Dynamic thresholds
+
+Azure Monitor uses machine learning to check the historical behavior or metrics. 
+
+Based on the historical data, it can then identify patterns and anomalies that could indicate possible issues. 
+
+Sensitivity 
+
+High - Here the alert rule will be triggered even for the smallest deviation.
+
+Medium - you have more balanced threshold and fewer alerts will be generated
+
+Low- alerts will only triggered on large deviation. 
+
+
+Select resource-> Condition -> CPU % -> Threshold -> Dynamic -> Threshold sensitivity -> Medium 
+
+
+
+Log analytics
+==================================================================
+
+Central solution for all of your logs
+
+
+Create resource -> Log Analytics -> Create -> 
+
+How to connect your VM into log analytics
+
+VM -> connect -> Extentions + applications -> microsoftmonitoringagent is being installed -> this agent will be sending logs to microsoft based vm 
+for linux it will be OmsAgentForLinux. 
+
+Agent Configuration ->  
+	* Windows event logs
+	* Windows performance counters
+	* Linux performance counter 
+	* Syslog 
+	* IIS logs 
+
+you need to wait for 20 mins to 30 mins to see the logs reflecting 
+
+Analytics -> Logs -> LogManagement -> Heartbeat (is already created)
+
+based on the log you configured, that table will be created. 
+
+1. Add windows event log -> Logname -> Application -> Error, warning, information 
+2. syslog -> Add facility -> syslog -> Emergency, alert, Critical , Error, Warning, Notice, Info, Debug etc. 
+
+
+
+Azure Web app - Diagnostic 
+
+Web app-> Diagnostic settings -> We can collect  (AppServiceHTTPLogs, AppServiceCOnsoleLogs, AppServiceAppLogs, AppServiceAuditLogs etc) 	
+Destination -> Send to Log Analytics workspace 
