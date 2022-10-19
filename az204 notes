@@ -1341,3 +1341,81 @@ Azure Web app - Diagnostic
 
 Web app-> Diagnostic settings -> We can collect  (AppServiceHTTPLogs, AppServiceCOnsoleLogs, AppServiceAppLogs, AppServiceAuditLogs etc) 	
 Destination -> Send to Log Analytics workspace 
+
+
+
+{
+"$schema":"https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate"
+"contentVersion":"1.0.0.0",
+"parameters":{},
+"functions":{},
+"varibales":{},
+"resources":[
+{
+"type": "Microsoft.Insights/actionGroups",
+"apiVersion": "2021-09-01",
+"name":"GroupB",
+"location":"Global"
+"properties":{
+"description": "Alert for when the VM CPU % goes beyond 70%",
+"severity":2,
+"enabled":true,
+"scopes": ["[resourceId('Microsoft.comute/virtualMachines','appvm')]"] // this will get resourceId of appvm
+"evaluationFrequency":"PT5M",
+"windowSize":"PT5M",
+"criteria":{
+azure-monitor/essentials/metrics-supported#microsoftcomputevirtualmachines this url will give list of metrics we can apply for virutual machine 
+"odata.type" :"Microsoft.Azure.Monitor.MultipleResourceMultipleMetricCriteria"
+"allOf":{
+"name":"CPU Criteria",
+"metricName":"Percentage CPU" // taken from microsoft docuemnetation
+"dimensions":[],
+"operator":"GreaterThanOrEqual",
+"threshold":70,
+"timeAggregation":"Average"
+}
+]
+}
+}
+"enabled":true,
+"groupShortName":"GroupB",
+"emailReceivers":[
+{
+"name":"AdminEmail",
+"emailAddress":"techsup4000gmail.com",
+"useCommonAlertSchema":false
+}]
+}
+
+
+Create resource -> Template deployment -> Build my own template in the editor -> copy pastethe above file content 
+
+
+
+ARM Templates -> Azure Monitor alerts
+
+
+
+
+{
+"$schema":"https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate"
+"contentVersion":"1.0.0.0",
+"parameters":{},
+"functions":{},
+"varibales":{},
+"resources":[
+{
+"type": "Microsoft.Insights/metricAlerts",
+"apiVersion": "2018-03-01",
+"name":"CPUAlert",
+"location":"Global"
+"properties":{
+"enabled":true,
+"groupShortName":"GroupB",
+"emailReceivers":[
+{
+"name":"AdminEmail",
+"emailAddress":"techsup4000gmail.com",
+"useCommonAlertSchema":false
+}]
+}
