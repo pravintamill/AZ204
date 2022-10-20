@@ -1607,3 +1607,171 @@ Console.WriteLine("Key does not exist");
 	
 
 
+Key Evection
+
+
+We need to ensure that the cache does not fill up. 
+
+Ensure that the cache does not have stale data. There is a default policy in place to evict keys that is LRU (least recently used) 
+
+We can refer which key eviction policy is suitable for our situation 
+
+noeviction: New values aren’t saved when memory limit is reached. When a database uses replication, this applies to the primary database
+allkeys-lru: Keeps most recently used keys; removes least recently used (LRU) keys
+allkeys-lfu: Keeps frequently used keys; removes least frequently used (LFU) keys
+volatile-lru: Removes least recently used keys with the expire field set to true.
+volatile-lfu: Removes least frequently used keys with the expire field set to true.
+allkeys-random: Randomly removes keys to make space for the new data added.
+volatile-random: Randomly removes keys with expire field set to true.
+volatile-ttl: Removes keys with expire field set to true and the shortest remaining time-to-live (TTL) value.
+
+
+SetKeyExpiry(string key, TimeSpan expiry)
+{
+
+IDatabase database = redis.GetDatabase();
+database.KeyExpire(key, expiry);
+Console.WriteLine("Set the key expire to 30 seconds");
+
+
+
+Use Redis cache in Web application
+---------------------------------------------------------
+
+1. Install StackExchange.Redis nuget package
+2. Connecting string in project
+3. use multiplexer class to connect with Redis cache. 
+4. Add Multiplexer and Produce service dependencies
+5. 
+
+public async Task<List<Product>> GetProducts()
+{
+List<Product> _product_list = new List<Product>();
+IDatabase database = _redis.GetDatabase();
+string key ="productList";
+if(await database.KeyExistsAsync(key))
+{
+long listLength = database.ListLength(key);
+for(int 1=0; i<listLenght;i++)
+{
+string value = database.ListGetByIdent(key, i);
+for (int i=0;i<listLenght;i++){
+string value = database.ListGetByIndex(key, i);
+Product product = JsonConvert.DeserializeOject<pRODUCT>(VALUE);
+_product_list.Add(product);
+}
+return _product_list;
+ else {
+
+string sql ="select * from Products";
+SqlConnection conn = new SqlConnection();
+con.Open();
+
+SqlCOmmand cmd = new SqlCommand(sql,con);
+using (SqlDataReader reader = cmd.ExecuteReader())
+{
+while(reader.Read())
+{
+Product _product = new Product()
+{
+ProductId = reader.GetInt32(0),
+ProductName = reader.GetString(1),
+Quantity = _reader.GetInt32(2)
+};
+database.ListRightPush(keh, JsonConvert.SerializeObject(_product));
+_prodcut_lst.Add(_product);
+
+}
+con.close();
+return _product_lst;
+}
+
+}
+
+
+What is Azure Content Delivery?
+==============================================================
+
+CDN profile is created at global level.. 
+
+And end point will be pointing to web application 
+
+
+1. The user in the East US location makes a request to the CDN endpoint
+2. The CDN checks whether the point of presence location closest  to the user has the requested file 
+3. If not a request is made to the source to get the required file
+4. A server in the point of present location will then cache the required file
+5. The server will also send the file to the user
+ 
+
+CDN
+=====================================================
+
+All resources -> Create resource -> Front Door and CDN profiles -> Create -> Explore other offerings -> Azure CDN standard from Verizon ->  This resource is Global level  -> Create End point ->  name will be appended with .azureedge.net -> OrginType (Web app)   -> orgin host name (Web app_
+
+4 - 5 mins to take effect -> 
+
+After deployment of resource we can see Endpoint in CDN profile -> Click on the endpoint we can see 
+
+Origin hostname : webapp url
+Endpoint Hostname : CDN url, this one we need to share it to client . This will load the website with CDN support 
+
+
+CDN caching 
+=========================================================
+
+We need to refresh the CDN if the data is changing
+
+CDN profile -> Endpoint -> caching rules -> Default cache expiration duration is 7 days by default
+
+Caching behavior -> Override -> Set expiration to 1 mins for demo purpose
+	* Bypass cache
+	* Override
+	* Set if missing 
+	* Not set 
+
+
+After doing that we need to first purge the cache. Then wait for 1 mins we can see the data is in sync. 
+
+
+Azure Front door
+===================================================================
+Azure Front door is another content deliver tool and it has more features. 
+
+1. Content delivery
+2. Web application firewall is there to protect your application. 
+3. We can route traffic based on certain criteria
+
+
+We are creating two web apps and put them behind Azure front door. 
+
+Go to WebApp -> App service editor-> create basic HTML file. (we can directly do some changes here)
+
+Create new resource -> Front Door and CDN profile -> Tier (standard) Endpoint -> specify name , Orgin type (app service) > Orgin host name (select web app) -> WAF (Web application Firewall policy) 
+
+Now Azure Front door is entry point front facing for user, based on condition we can route user to different server / application 
+
+
+Azure Front door -> Front door manager -> Routes -> Edit Origin group -> Add another orgin -> name , origin type, Hostname (another wep app) .. Now both webapps are having same priority and same weightage. we need to wait for 10 mins 
+
+If we access web endpoint of front door, we are landing in UK south, even though we have same priority to both web apps. Reason is UK south has low latency from my current location. we can check this on azure speed.com.  Azure front door will identify which one is best then redirect there. 
+
+
+Caching - You can enable caching your endpoint routes
+
+When delivering large files, Azure Front Door request the file from the origin in chunks of 8 MB
+When a chunk of data is received, the data chunk is cached and immediately sent to the user. 
+
+you have different query string behaviors when it comes to caching. 
+
+Ignore query strings - Here the query strings from the requestor is passed to the origin for the first request and then the asset is cached. All further requests ignore the query strings until the expiry of the cached asset. 
+Cache every Unique URL - Here each URL is treated as unique and cached separately. 
+Specify cache key query string  - you can decide to include/ exclude specified parameters to determine what gets cached. 
+
+Compressing is possible. 
+
+
+
+
+
+
