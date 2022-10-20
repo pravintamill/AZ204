@@ -1419,3 +1419,191 @@ ARM Templates -> Azure Monitor alerts
 "useCommonAlertSchema":false
 }]
 }
+
+
+What is Application Insights?
+
+	* This provides the feature of application performance managment and monitoring of live web applications - Monitoring
+	* You can see aspects such as detecting performance issues or any other Issues - Aspects
+	* Support for .Net, node.js, java and python. 
+	* This works for application hosted in Azure, on-premises environments or other cloud platforms
+	* It has Integration with the Visual studio IDE 
+
+How it works ? 
+
+You can install a small instrumentation package (SKD) for your application or use the application insights agent. 
+
+You can instrument web applications background components and javascript in web pages .
+
+The telemetry data sent by application Insights has very little impact on the perfromance of your application. 
+
+In Nuget packages we can see that Appinsight is deprecated, we need to use latest stable version to get rid of this issue. 
+
+
+
+Application Insights on Azure
+===============================================================
+
+Go to Web app -> Turn on Application Insights -> Enable -> Create New rosource (this will create new application insight ) -> We need to select Log analytics workapace also -> Go to .net core and select different  aspects -> Recommended -> Profiler (On)  , Snapshot debugger (on) , SQL commands (ON) 
+
+
+Click on connected services -> remove SDK dependency and save. But we are going to keep telemetry code in program.cs because we need this line to use azure application insights. but SDK is not required on cloud. 
+
+
+Once published to cloud you can see new app insight resource is created -> Live metrics -> We can see incoming and outgoing requests. 
+
+
+Performance data - Application Insights
+===================================================================
+
+App insights -> Performance tab -> We can see time taken for that request and we can also see dependent request etc from this performance tab. 
+
+To view the sql script executed we can use the following code
+
+builder.Services.ConfigureTelemetryModule<DependencyTrackingTelemetry>((module,o) => {module.EnableSqlCommandTextInstrumentation = true;});
+
+Right click on the project -> Configure application insigts -> Application Insights SDK (local) or Azure Application insights -> Next -> It will install nuget packages and code dependency will be added 
+
+This step will install Microsoft.ApplicationInsights.dotnetcore and program.cs will have builder.Services.AddApplicationInsightsTelemetry();
+
+Run your application -> View -> Other Windows -> Application Insights search -> Search debug session telemetry -> Search we can see different types of events. 
+
+
+Application Insights -> Users, Sessions and Events
+
+=============================================================================
+
+Users - Here you can see how many people have used your applicationand its features.
+
+Session - You can see sessions of user activity. This includes certain pages and features of the application. 
+
+Events - This gives a view of how often certain pages and featres have been used in the application. 
+
+Funnels - Here you can have multiple stages like a pipeline and then you can see how users are progressing through your application as an entire process
+
+Cohorts - This is set of users, sessions, events or operations that have something in common. It helps to analyze a particular set of users or events. 
+
+Impact - Here you can see how load times and other aspects of your application impact the conversion rate for your application. 
+
+Retention - You can analyze how many users return back to your application. 
+
+User flows- This can help in answering useful questions such as 	
+	1. What do users click on a page within the applicaiton 
+	2. Where are the places within the application that users chrun the most from the site. 
+	3. Are there places in the application where the users repeat the same action over and over again. 
+
+
+Application Insights - Availablity Tests
+==============================================================
+
+Tests - You can define tests that can monitor the availability and responsiveness of an application 
+Web Requests - This feature can send web requests to your web application from different points across the world. 
+End point - You can setup tests against an HTTP or HTTPS endpoint that's accessible over the public internet
+API - You can also test your REST API's as well 
+
+Go to application Insights -> Availability -> Add Standad (preview) test ->  Test URL (app service URL ) (Parse dependent requests -- this wil test for dependent resources like image etc).
+
+Test Frequency  -> 5 mins , Test location . Lets test after 20 mins. 
+
+This is automated test for your we application availability. 
+
+Application Insights - Tracking Users 
+===================================================
+
+Now we can see that under app insights Sessions -> Users -> Authenticared user -> we can see undefined in the authenticated users. 
+
+
+To log authenticated user -> Create a class "TelemetryServices.cs" ->  inherit from TelemetryInitializerBase class 
+
+
+
+public TelemetryService(IHttpContextAccessor httpContextAccessor) : base(httpContextAccessor){
+}
+
+protected override void OnInitializeTelemetry(HttpContext platformContext, RequestTelemetry)
+{
+telemetry.Context.User.AuthenticatedUserId = platformContext.User?.Identity.Name ?? string.Empty 	
+
+
+}
+Optimizing Content Delivery 
+============================================================
+Frequently accessed data can be saved on Redis cache for better performance. 
+
+
+Azure Redis Cache
+
+Data store: This is an in-memory data store that is based on the Redis software
+
+Server memory : Here you can store frequently accessed data in server memory. 
+
+Advantage : the advantage of server memoery is tht you can write and read data quickly. 
+
+For the application: It helps to provide low latency to your data and high throughput
+
+Data cache
+------------------------------------------------------------
+
+1. We are taking very frequently accessed data from source (Azure SQL or any possible datasource) and then store it in Azure Cache for Redis then 
+our application directly accessing from Redis cache. Keep in mind that Redis cache and Azure SQL database wont know each other. They wont in sync, unless it is ensured by the web application. Its web apps responsibility. 
+
+
+
+Content cache
+---------------------------------------------------------------
+We store header footer and static content in the cache. 
+
+
+Session Store
+-----------------------------------------------------------------
+
+Cart item can be stored in cache. 
+
+
+
+Go to Azure Cache -> Console 
+
+Set top:course:rating 4.9
+get top:course:rating 
+exists top:course:rating -- Integer(1) means yes, integer(0) means no. 
+del top:3:course
+
+
+lpush top:3:courses "az-104"
+lpush top:3:courses "az-204"
+lpush top:3:courses "az-304"
+
+leNFW ROP:3:COURSES 0-1
+
+
+
+Developing Solutions for Microsoft Azure 
+
+======================================================
+
+Install StackExchange.Redis package from Nuget package. 
+
+string connection ="connectionstring from azure for redis cache"
+
+ConnectionMultiplexer redis = ConnectingMultiplexer.Connect(connectionString);
+Void SetCacheData()
+{
+IDatabase database = redis.GetDatabase();
+
+database.StringSet("top:3:courses", "az104,az-204,az-304");
+console.writeline("cache data has been set");
+}
+
+
+Void getCacheData()
+{
+IDatabase  db = redis.GetDatabase();
+if(db.KeyExists("top:3:courses")){
+console.WriteLine(db.StringGet("top:3:courses"));
+else
+Console.WriteLine("Key does not exist");
+}
+}
+	
+
+
