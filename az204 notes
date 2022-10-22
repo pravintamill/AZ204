@@ -1771,6 +1771,603 @@ Specify cache key query string  - you can decide to include/ exclude specified p
 Compressing is possible. 
 
 
+Tools
+=============================================================
+
+Powershell 
+-----------------
+
+Powershell is an engine where we can run various commands to work with different services. It can be used on Windows, Mac and Linux distributions. Azure powershell is a section which will handle azure based resources. 
+
+Powershell provides command line shell, script language and configuration network
+
+Powershell has the ability to work with .Net objects. 
+
+cmdlets - these are powershell commands. 
+
+
+Install powershell
+-----------------------------------------------------------
+
+In windows machine, powershell is preinstalled
+
+get version "$PSVersionTable"   
+
+Install Azure Az Powershell module. 
+0. Open Powershell in admin mode 
+1. Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+2. Install-Module -Name Az -Scope CurrentUser -Repository PSGallery -Force (in case of error use -AllowClobber) 
+ARM Templates are resource as code
+3. After instalation Connect-AzAccount this will prompt credentials in browser upon successful log we can get Account, tenant and Subscription ids in Powershell. 
+
+
+Azure Powershell using visual studio code. 
+----------------------------------------------------------------------
+
+Open VS code -> Extensions -> Install
+	* Powershell
+	* Azure powershell 
+
+Create new file -> Select language (default python, we can change to powershell. As soon as you change Powershell you can notice terminal starts PS /home/project (whatever your current directory ) 
+
+Create 3 folders Azure web app -> Script.ps1
+
+
+$ResourceGroupName="powershell-grp" 
+$Location="North Europe"
+$AppServicePlanName="companyplan200"
+$WebAppName="companyapp90999"
+
+Connect-AzAccount
+
+New-AzResourceGroup -Name $ResourceGroupName
+
+New-AzAppServicePlan -ResourceGroupName $ResourceGroupName `
+-Location $Location -Tier "B1" -NumberofWorkers 1 -Name $AppServicePlanName
+
+
+New-AzWebApp -ResourceGroupName $ResourceGroupName -Name $WebAppName `
+-Location $Location -AppServicePlan $AppServicePlanName
+
+
+If we run this command, it will ask for credentials and this script itself will create resourcegroup and create webapp for us. 
+
+
+
+Integrate Github
+---------------------------------------------------------
+Another folder COnfiguration with Github
+
+
+$ResourceGroupName="powershell-grp"
+$WebAppName="companyapp90999"
+//we dont have to use AzConnect as we just connected with another powershell script in the previous example. otherwise connect to azure account is the first step.
+$Properties=@{
+repoUrl="url of your Github repository";
+branch="master";
+isManualIntegration="true";
+}
+
+Set-AzResource -ResourceGroupName $ResourceGroupName -Properties $Properties `
+-ResourceType Microsoft.Web/sites/sourcecontrols -resourceName $WebAppName/web -ApiVersion 2015-08-01 -Force
+
+
+
+Deployment slots
+--------------------------------------------------------------
+
+
+
+$ResourceGroupName="powershell-grp"
+$WebAppName="companyapp90999"
+$AppServicePlanName="companyplan200"
+
+
+Set-AzAppServicePlan -Name $AppServicePlanName -ResourceGroupName $ResourceGroupName `
+-Tier  Standard
+
+$SlotName="Staging"
+
+New-AzWebAppSlot -Name $WebAppName  -ResourceGroupName $ResourceGroupName -Slot $SlotName
+//we dont have to use AzConnect as we just connected with another powershell script in the previous example. otherwise connect to azure account is the first step.
+$Properties=@{
+repoUrl="url of your Github repository";
+branch="master";
+isManualIntegration="true";
+}
+
+Set-AzResource -ResourceGroupName $ResourceGroupName -Properties $Properties `
+-ResourceType Microsoft.Web/sites/slots/sourcecontrols -resourceName $WebAppName/$SlotName/web -ApiVersion 2015-08-01 -Force
+
+// above code should create a deployment slot named staging. to switch our deployment slots from Production to staging follow the below commands
+
+//As we already executed the above code, need to highlight the below and run it agin
+
+$TargetSlot="production"
+
+Switch-AzWebAppSlot -Name $WebAppName -ResourceGroupName $ResourceGroupName -SourceSlotName $SlotName -DestinationSlotName $TargetSlot
+
+Azure CLI
+=============================================================
+
+Azure CLI is available in Mac, Linux and Windows
+
+Install Azure cli for your respoective OS and to go command prompt and enter 
+
+"az login" -> prompted to give credentials once done your detail will be fetched on the CLI
+
+
+ Few CLI commands
+
+
+//1.  create app service plan 
+
+az appservice plan create --name azcliplan100 --resource-group docker-grp --is-linux  //--is-linux  check is underlying machine is for linux 
+
+//2. Create Web app
+
+az webapp create --resource-group docker-grp --plan azcliplan100 --name dockerapp55000 --deployment-container-image-name appregistry30030.azurecr.io/webapp:latest
+
+//3. If you want to turn on container logging
+
+az webapp log config --name dockerapp55000 --resource-group docker-grp --docker-container-logging filesystem
+
+//4. Enable the log stream 
+
+az webapp log tail --name dockerapp55000 --resource-group docker-grp 
+
+
+Azure CLI - Azure Kubernetes 
+=============================================================
+Azure Cloud shell - this terminal can execute both Powershell scripts and Azure cli commands 
+
+Powershell may be prompted to you for admin rights, so if you dont have admin rights then you can go for the Azure cloud shell, it will be operate based on Azure logged in credentials. 
+
+Please note it requires Azure storage account. 
+
+1. Create resource group
+	* az group create --name kubernetes-grp --location northeurope
+2. Az aks create --resource-group kubernetes-grp --name appcluster --node-count 1 --enable-addons monitoring --generate-ssh-keys
+	// aks will create Azure Kubernetes services . Please wait for 5 mins for the step 2 to complete 
+3. kubectl tool is inbuild with kubernetes (kubectl is included with Azure cloud shell) . To install in your local machine az aks install-cli
+
+4. Get credentials so that kubectl tool can interact with aks 
+	az aks get-credentials --resource-group kubernetes-grp --name appcluster
+5. kubectl get notes
+
+6. We can deploy yaml files we created when work with containers. deploy and service.yml files 
+
+kubectl apply -f deployment.yml
+kubectl apply -f service.yml 
+
+7. After this commands, you can go to appcluster -> workloads -> nginx deployment  and go to services and ingresses -> nginxservice in place. 
+
+8. Delete resource group - az group delete --name kubernetes-grp 
+
+
+ARM templates 
+========================================================================
+
+1. Infrastructure as code. 
+
+sample ARM template 
+
+"resources": [
+  {
+    "type": "Microsoft.Storage/storageAccounts",
+    "apiVersion": "2019-04-01",
+    "name": "mystorageaccount",
+    "location": "westus",
+    "sku": {
+      "name": "Standard_LRS"
+    },
+    "kind": "StorageV2",
+    "properties": {}
+  }
+]
+
+
+Create ARM from VS code
+------------------------------------------------------------
+
+1. Extension -> search arm template 	ARM tools 
+2. Select language - > JSON -> type Arm (as we have already installed ARM tools we will get basic template 
+3. New-AzResourceGroupDeployment -ResourceGroupName app-grp -TemplateFile template.json
+4. "copy":{
+"name":"storagecopy",
+"count":3
+}
+
+this command will create 3 instances having same configuration as mentioned in the resources. However we need to give unique name for the storage account. for that we can use the below expression 
+"name": "[concat(copyIndex(),'appstore444444')]
+
+
+ARM Template - Azure Virtual Machine 
+=============================================
+
+Create resource -> Click Virtual machine -> Edit template -> (this will give all information needed, we can edit and use that ARM 
+
+location: "[resourceGroup().location]"
+
+we have dependsOn property. It will say particular property is dependsOn another, for example Network interface is depend on PublicIpaddress and virtual networks. This is important azure is not going to follow the order we created json property. So it is important to mention depends on 
+
+
+
+
+Section 7
+########################################################################################################
+
+Azure Storage  
+==================================================================
+
+There are different types of Storage account. If you create general purpose v2 , we can create
+	* Blob (Large objects images, videos etc)
+	* Table (store table data)
+	* Queue (storign queues, used for sending and receiving messages)
+	* File (used for file shares)
+
+
+Account tyes
+==================================================================
+
+1. Standard General purpose v2
+	This is standard storage for blobs, file shares, queues and tables
+2. Premium block blobs
+	This is supported for block and append blobs. This is when you want fast access to your blobs, high transaction rates
+3. Premium page blobs
+	This used to store virtual harddisk for azure VM . This is when you want to fast access to your blobs high transaction rates
+4.Premium file shares
+	If you want fast access to your files 
+
+
+Different types of blobs
+
+	* Block blobs  (blocks of data that can be managed individually)
+	* Append Blobs (These block blobs are optimized for append operation, good for logging)
+	* Page blobs (Virtual hard drive files )
+
+Upload a blob 
+=============================================================
+1. We need to create a container then we can upload any file
+2. Upload -> Browse -> Select files ->open -> upload -> Edit (there are selected formats that can open, pdf it will not open)
+3. By default it will create Block Blob 
+4. Upload a folder (this will first create a folder then create files into that 
+5. Data lake Gen 2 , this will create folder structure in place
+
+Accessing blob
+=================================================================
+1. If you copy paste blob url and execute in the browser, you can see you not authorized error. It is private and not available for ananymous access
+2. One way to enable access is(not recommended way) Change access level -> 
+	* Private (no anonymous access)
+	* BLob (anaonymous read access for blobs only)
+	* Container (anonymous read access for containers and blobs) 
+3. If we give option 2 or 3 now you can access blob. 
+
+Different Authorization methods
+=====================================================================
+1. Access Keys
+2. Shared Access Signatures
+3. Azure Active Directory
+
+
+Using Azure Storage explorer
+=========================================================================
+Install this free tool from internet -> launch it.  If we login, under our subscription we can see storage account and blob container. 
+
+
+If we provide the access key for the storage account then the user is having full access to the storage account. 
+
+
+
+Shared Access Signature
+=================================================================================
+1. Click on any object in storage account -> Generate SAS -> 
+	* Signing Key -> Key 1 / Key 2 - its going to use any one key to generate SAS key. 
+Permission -> Read 
+Start and end time we can configure 
+Allowed IP addresses -> 
+Allowed protocol -> HTTPS only
+Generate SAS token and URL 
+
+Blob SAS token and
+Blob SAS URL is generated 
+
+If we copy SAS URL then we can see the azure blob file using SAS token. 
+
+
+
+SAS at account level 
+=======================================================================
+We have more option now when we check SAS at the account level 
+
+
+Allowed services
+
+Blob File Queue Table - we can check as required
+
+Allowed resource types
+Services  container object - as required
+
+Allowed Permissions
+Read Write Delete List Add Create Update Process Immutable storage 
+
+Blob Versioning permission
+Enables Deletion of versions
+
+Allowed blob index permissoin 
+
+Read/Write Filter 
+
+
+If we try to access the SAS token we cannot access it, as it will have to access whole storage account, not single file . So instead of browser we need to use Azure Storage Explorer
+
+We can only see what we have access to see. I have given only blob then only blob storage will be visible in storage explorer 
+
+
+Stored Access Policy 
+=======================================================================
+
+If SAS is compromised and wrong people get to know it then we need to invalidate. We have access policy
+
+1. Access Policy -> Add policy -> "ReadPolicy(AnyUserName)" save this. 
+
+2. Go to Azure Storage explorer -> Storage account -> Container -> Get Shraed Access policies -> Access Policy -> Select our ReadPolicy ->  Create -> now you will get URL -> copy 
+
+3. Add Account -> Blob container -> SAS -> Paste URL here 
+
+4. If you want to revoke the access you can go to the Access policy and remove the permission. 
+
+
+Different types of SAS
+
+1. Account SAS
+2. Service SAS
+3. User delegation SAS
+
+
+Storage Accounts  - Active Directory Authentication
+====================================================================
+
+1. Create User in AD
+2. Assing role assignment with storage account and -> IAM -> give Storeage account contributor 
+
+
+Azure Storage account  - Pricing Tiers
+
+
+All prices are per GB per month.
+
+Premium	Hot	           Cool	                 Archive
+First 50 terabyte (TB) / month	$0.15 per GB	$0.018 per GB	$0.01 per GB	$0.00099 per GB
+Next 450 TB / month	$0.15 per GB	$0.0173 per GB	$0.01 per GB	$0.00099 per GB
+Over 500 TB / month	$0.15 per GB	$0.0166 per GB	$0.01 per GB	$0.00099 per GB
+
+
+Hot is default access tier. 
+Cool - accessed infrequently stored for at least 30 days 
+Archive - Rarely accessed and stored for at least 180 days 
+
+Hot and cold is enabled for storage account level and archive is enabled for Blob level . 
+
+
+
+Hot ,Cool access tiers 
+===========================================================
+
+Storage account -> Configuration settings -> Blob access tier -> Can change it to Hot and cool. 
+
+Archieve access tier. 
+=============================================================
+
+Setting the access tier to "Arhive" will make your blob inaccessible unitl it is rehydrated back to "Hot" or "Cool" which may take several hours. 
+
+If you change your blob item to Archive then you cannot see that item listed in the container of storage account. You need to change the access tier again. 
+
+There you can set the rehydrate priority to 
+	* Standard or
+	* High (this means faster rehydrate and higher cost) 
+
+
+Life cycle management policies
+==================================================================
+If we feel we are using some objects less frequently then we can change it to Cool or archive access tier, but it is tidius to do that every single item. There is efficient way to do that. 
+
+Through some rules we can tell Azure to change access tier for an object or even delete object. 
+
+Life cycle Management 
+----------------------
+1. Transition - YOu can transition blobs from the cool to host access tier to save on storage cost 
+2. You can transition blobs, blob versions and blob snapshots   
+3. You can also define rules to delete blobs, blob versions and blob snapshots
+4. Rules can be applied at the storage account level or to a subset of blobs. 
+
+Rules filter - you can define filters for blobTypes - blockBlob, appendBlob
+Rule actions - You have actions such as tierToCool, tierToArchive and delete 
+Support - Rules are supported for blob and append blobs in general0purpose v2 accounts, Premium Block Blob and Blob Storage accounts. 
+Regions - this feature is available in all regions. 
+
+How to do that?
+---------------------------------
+
+Storage account -> Data management -> Lifecycle management -> Add rule -> Ally rule to all bobs in your storage account / Limit Blobs with filters. 
+Blob type -> Block blobs/ Append blobs
+Blob subtype -> Base blobs/snapshots/versions
+
+Base blobs were Last modified More than (days ago) -> 30 -- any value we can set
+Then Move to cool storage 
+
+
+Note on the Rehydrate time 
+=========================================================
+Rehydration priority
+When you rehydrate a blob, you can set the priority for the rehydration operation via the optional x-ms-rehydrate-priority header on a Set Blob Tier or Copy Blob operation. Rehydration priority options include:
+
+Standard priority: The rehydration request will be processed in the order it was received and may take up to 15 hours to complete for objects under 10 GB in size.
+High priority: The rehydration request will be prioritized over standard priority requests and may complete in less than one hour for objects under 10 GB in size.
+
+
+Azure Blob versioning 
+===============================================================
+
+Versions - Allow to keep previous versions of a blob
+Restore - You can then restore an earlier version of the blob
+Version Id - Each blob gets an initial version ID. A new version is set whenever the blob is updated
+Feature Enable - You can enable or disable the feature at any point of time 
+
+
+Storage Account -> Data management -> Data protection -> Tracking -> Enable versioning for blobs 
+
+Blob Snapshots
+=====================================================================
+Note: If we disable versioning for an storage account still the versions of the file will not be removed. 
+Storage accounts -> Data protections -> Snapshots (Take a copy /snapshot of file  at that particular point of time. ) 
+Click on the snapshot -> Promote snapshot -> this will resotre the snapshot as current version. 
+
+
+Soft Delete 
+==============================================================
+Retention - You can specifiy a retention period for deleted objects, this is betweeen 1 - 365 days. 
+Availability  - Depending on the retention period, the data will be made available after it has been deleted or overwritten 
+Restore - During the retention period, you can restore a deleted blob along with its snapshots
+Change - You can change retention any time. 
+
+Storage account -> Data protections -> Enable soft delete for blobs -> 7 days is enabled by delete. 
+Delete the blob file -> Click on the switch "Show delete blobs" -> right most . . . -> Undelete  
+
+
+Creating containers 
+================================================================
+
+1. Create console project based on .net 6. -> Install Azure.Storage.Blobs -> 
+2. Program.cs -> 
+string connectionString ="constrfromAzureStoreAccount";
+string containerName ="DesiredContainerName";
+BlobServiceClient blobServiceClient = new BlobServiceClient(connectionString);
+await blobServiceClient.CreateBlobContainerAsync(containerName); // we can specify second parameter as public access type Azure.Storage.Blobs.Models.PublicAccessType.Blob/BlobContainer/None 
+Console.WriteLine("Container created");
+
+.NET -Uploading a blob 
+====================================================================
+
+string connectionString ="constrfromAzureStoreAccount";
+string containerName ="DesiredContainerName";
+
+string blobName="script.sql ";
+string filePath="c:\\temp\\script.sql"
+BlobContainerClient blobServiceClient = new BlobContainerClient(connectionString, containerName); // we are directly connecting to Container of storage account 
+BlobClient blobClient= blobServiceClient.GetBlobClient(blobName); 
+await BlobClient.UploadAsync(filePath, true); // true is override flag, if it exists already. 
+Console.WriteLine("Container Updated ");
+
+
+.NET -list the blob 
+====================================================================
+Using Azure.Storage.Blobs;
+
+string connectionString ="constrfromAzureStoreAccount";
+string containerName ="DesiredContainerName";
+
+BlobContainerClient blobContainerClient = new BlobContainerClient(connectionString, containerName); // we are directly connecting to Container of storage account 
+
+await foreach(BlobItem bi in blobContainerClient.GetBlobsAsync )
+{
+Console.WriteLine("The Blob Name is {0}", blobItem.Name);
+Console.WriteLine("The Blob size is {0}", blobItem.Properties.ContentLength ); // size will ne in bytes 
+
+
+}
+  
+.NET - Download a blob 
+====================================================================
+Using Azure.Storage.Blobs;
+
+string connectionString ="constrfromAzureStoreAccount";
+string containerName ="DesiredContainerName";
+
+string blobName="script.sql ";
+string filePath="c:\\temp\\script.sql"
+BlobClient blobClient= new BlobClient(connectionString, ContainerName, blobname); 
+await.blobClient.DownloadToAsync(filePath) ;
+
+Console.WriteLine(" blob downloaded ");
+
+.NET - Blob metadata
+====================================================================
+
+Metadata -> is a key value pair . Example Department IT. 
+
+
+How to set metadata from .Net program
+----------------------------------------
+
+
+Using Azure.Storage.Blobs;
+
+string connectionString ="constrfromAzureStoreAccount";
+string containerName ="DesiredContainerName";
+string blobName="script.sql ";
+BlobClient bc = new BlobClient(connectionString, ContainerName, blobname); 
+
+ 
+async Task SetBlobData()
+{
+BlobClient bc = new BlobClient(connectionString, ContainerName, blobname); 
+IDictionary<string,string> metaData = new Dictionary<string,string>();
+metaData.Add("Department","IT");
+metaData.Add("Department","HR");
+
+await bc.SetMetadataAsync(metaData);
+
+
+Console.WriteLine("metadata added! ");
+
+}
+async Task GetMetaData();
+{
+BlobProperties blobProperties = await blobClient.GetPropertiesAsync();
+foreach(var metaData in blobProperties.Metadata)
+{
+console.WriteLine("The Key is {0}". medataData.Key);
+console.WriteLine("The Value is {0}". medataData.Value);
+}
+
+
+.NET - Blob lease
+====================================================================
+
+1. If an update is performed on a blob object by a webapp/ amny program then that application will acquire a lock so that no other application is allowed to change that blob file. 	
+2. How to acquire a exclusive lock from an application.
+
+
+async Task AcquireLease()
+{
+string blobName ="script.sql";
+BlobClient blobClient = new BlobCLient(connectionString, containerName, blobName);
+BlobLeaseClient blc = BlobClient.GetBlobLeastClient();
+TimeSpan leaseTime = new TimeSpan(0,0,1,00);
+Response<BlobLease> response = await blobLeaseClient.AcquireAsync(leaseTime); 
+Console.WriteLine("Lease Id is {0}", response.Value.LeaseId);
+}
+
+
+When we run this program and then go to the blob we can see message "This blob has an active lease and can not be deleted or edited". 
+
+AZ-Copy tool 
+====================================================================
+1. Download az-copy executable from internet and install it 
+Note: Authorize AzCopy can be done by Azure AD and SAS. 
+
+ 
+//To create a container 
+azcopy make "https://appstore4040.blob.core.windows.net/tmp?SASKeyofAzureStorageAccount" // This is SAS of our storage account  
+
+copy paste the above lines in az copy. go to path where azcopy executable is resides. then open commande prompt then paste the above commands 
+// Upload a blob    format is https://storageaccount/containername/filestoupload/SASaccesskey
+azcopy copy "script.sql" "https://appstore4040.blob.core.windows.net/tmp?SASKeyofAzureStorageAccount" // This is SAS of our storage account  
+
+
+// Download blob    format is https://storageaccount/containername/filestoupload/SASaccesskey "Downloadfilename"
+ azcopy copy "https://appstore4040.blob.core.windows.net/tmp?SASKeyofAzureStorageAccount" // This is SAS of our storage account  "script.sql"
 
 
 
