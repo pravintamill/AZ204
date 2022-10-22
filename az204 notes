@@ -2372,3 +2372,114 @@ azcopy copy "script.sql" "https://appstore4040.blob.core.windows.net/tmp?SASKeyo
 
 
  
+ Moving a storage from one region to another 
+===================================================================
+
+1. To move a storage account, create a copy of your storage account in another region. Then, move your data to that account by using AzCopy, or another tool of your choice.
+
+ 
+
+Export a template.
+Modify the template by adding the target region and storage account name.
+Deploy the template to create the new storage account.
+Configure the new storage account.
+Move data to the new storage account.
+Delete the resources in the source region.
+Prerequisites
+
+1. Export template can be found in Storage account -> Automation -> Export template 
+
+In the downloaded template we can change the location of the file and execute that in template deployment 
+
+
+
+Azure Blob Change feed
+=================================================================
+1. purpose - It provides an ordered, guaranteen, durable, immutable read-only log of changes. 
+2. Operation - Audit log of events to Blob data - Create, UPdate, Delete
+3. The Change feed data is stored ina container name $blobchangefeed (under the same storage account) .
+4. Record format - The records are stored in Apache Avro format 
+
+How to enable this? 
+-----------------------------------------------------------------
+1. Storage Account -> Data protection -> Tracking -> Enable blob change feed -> (Keep track of create, modification and delete changes to blobs in your account.
+
+	* Keep all logs
+	* Delete change feed log after (in days)   --  you are now having logs that are going to be stored in the same storage account.
+
+What is Azure Table storage 
+=======================================================================
+1. This is a service that is used to store non-reational structured data
+2. Based on structured NoSQL data
+3. You follow a key/attribute store with a schemaless design 
+
+
+Basically, we dont want to keep any relationship between table to store duplicate data and using complex joins to retrieve data and all. We just need to store data and retrieve it in a faster manner. 		 	
+
+
+* A table is a collection of entities
+* The entities dont abide by any schema
+* Each entity can have a different set of properties
+* An entity is made up of properties
+* Each property is name-value pair
+
+
+Entity  -- ROW
+--------------
+
+Partition key - This is a string vlaue, this identiifed the partition that the entity belong to 
+Row key - This is a string value. This uniquely identifies each entity within the partition
+The partition key along with the row key helps to uniquely identify the entity within the table. 
+
+
+Lab - Azure Table storage
+===================================================================
+1. Storage account -> Tables -> Create table -> Orders
+2. Storage browser -> Tables -> Orders -> Add Entity  -> We need to enter Partition key and row key. O1 (Rowkey), MObiles(partitionKey), Quantity. These are three property 
+3. As this is schemaless, next entity may have additional property also, example, customerid is added additionally alone with row, partition key, quantity. 
+
+
+.Net  - Azure Table storage - Add Entity. 
+==================================================================
+1. Install Azure.Data.Tables from nuget. 
+string constr = "";
+string tableName ="Orders";
+
+AddEntity("01","Mobiles",100);
+AddEntity("02","Laptop", 200);
+AddEntity("03","Mobiles",300);
+AddEntity("04","Laptop",300);
+
+
+void AddEntity(string orderId, string category, int quantity)
+{
+TableClient tc = new TableClient(constr,tableName)
+TableEntity te = new TableEntity(category,orderId)
+{
+{"quantity",quantity}
+};
+tc.AddEntity(tableEntity);
+Console.WriteLine("Added Entity with order ID {0}", orderId);
+}
+
+
+void QueryEntity()
+{
+TableClient tableClient = new TableClient(constr,tableName);
+Pageable<TableEntity> results = tableClient.Query<TableEntity>(entity => entity.PartitionKey==category);
+foreach(TableEntity tableentity in results)
+{
+Console.WriteLine("Order Id {0}", tableEntity.RowKey);
+Console.WriteLine("Quantity is {0}",tableEntity.GetInt32("quantity"));
+}
+}
+
+
+DeleteEntity(string category, string orderId)
+{
+TableClient tc = new TableClient(constr,tableName);
+tc.DeleteEntity(category, orderId);
+Console.WriteLine("Entity Deleted");
+} 
+
+
