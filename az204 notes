@@ -2483,3 +2483,640 @@ Console.WriteLine("Entity Deleted");
 } 
 
 
+
+Section 8
+#######################################################################################
+
+What is Azure cosmos DB?
+================================================================
+
+1. Azure Cosmos DB
+2. Fully managed NoSQL database
+3. you get single digin millisecond response times
+4. Scales automatically on demand. 
+
+	* SQL API   -  json based data and sql cinnabds
+	* MongoDB   - 
+	* Gremlin    -  graph based database
+	* Cassandra 
+	* Table      
+
+
+1.Create databased account and choose type of api
+2.Database
+3.Container
+4. Items
+
+             Database Term      Container term     Item Term 
+
+SQL API	      Database            Container          Item
+
+MongoDB	      Database            Collection         Document 
+
+Gremlin	      Database            Graph              Node/Edge
+
+Cassandra     Keyspace   	  Table	             Row
+
+Table  	      Database            Table              Item		
+
+  
+
+Partitions
+==============================================================
+
+1. Logical partitions - Items in a container are divided into subsets called logical partitions
+2. Partition key - The partition for the item is decided by the partition key that is associated with the item in the container
+3. Item id - Each Item also has an item id. This helps to uniquely identity an item in the partition. 
+4. Identification - The combination of the partition key and the item id helps to uniquely identify the item within the container 
+5. Size  - Each logical parition can grow up to 20 GB
+6. Limit - There is no limit of number of logical partitions within the container 
+
+
+Partition Key
+----------------------
+* Choose a property to be a partition key which value wont change 
+* The property should have a wide range of possible values
+* Once you decide on the parition key for a container, you CAN'T CHANGE IT
+
+
+Costing 
+==================================================
+
+Request Units
+	* The cost of database operation is measured in terms of Request units
+	* Request Units is a blended measure of CPU, IOPS and memory 
+	* Request units are used no matter which API you are using for Cosmos DB account 
+	* The cost of reading a single item (1KB) is 1 request unit
+	* Other operations have their own measure of charged request units 
+	* For each operation, you can see the amount of request units that were used for that operation 
+
+Provisioned Throughput
+----------------------
+1. Here you provision the number of request units. You can always increment or decrement the number of request units provisioned. 
+2. You are billed on an hourly basis
+3. You can provision throughput at the container or database level 
+
+Serverless mode
+-----------------------
+1. you dont providion any throughput
+2. This is managed by Azure cosmos DB	 
+3. You will be billed based on the Request Units you consume
+
+Autoscale Mode
+-------------------
+1. the Request units can automatically scale based on demadn
+2. The demand is checked both at the container and database level.
+3. Great for mission critical workloads. 	
+
+
+Creating new Azure Cosmos DB account
+====================================================
+
+1. Create cosmos db account then create container
+2. Partition key -> /category id (partition key should have  / in the beginning) -> OK  
+3. Go to CosmosDB -> Order (table name) -> Items -> New ITem -> { "orderId":"1", "category":"Laptop","quantity":100} -> Upon saving we will notice some new properties will be added 
+
+{
+"orderId":"1",
+"catgory":"Laptop",
+"quantity":100,
+"id":"sysgenerated id",
+"_rid":"xys",
+"_self":"",
+"_etag":"",
+"_attachments":"attachments/",
+"_ts":160102002,
+ 
+}
+
+
+
+Partition key should have variety of values, means it should be the criteria column where we can use group by. In our example orderid is not recommended. Because each order id we will be creating a partition. Category is ideal candidate. 
+
+Objects Within objects.
+
+Order will have customer information, in ideal sql server scenario we will have customer table and we will join and fetch. In the Cosmos DB we are going to create an object within object. Like below
+
+{
+"OrderId":"1",
+"category":"Laptop",
+"quantity":100,
+"customer":{
+"customerId":"c1",
+"customerName":"pravin"
+}
+
+we can query like below
+
+SELECT o.orderId, o.category,o.quantity, o.customer.customerName form Orders o
+
+
+
+.NET - Create Database and container 
+==================================================================
+1. Create console application and Install Microsoft.Azure.Cosmos package from nuget
+2. program.cs
+	string cosmosEndpoint="URLFromAzureCOsmosDBAccount"; 
+	string cosmosDBKey ="Primary/secondarykeFromAzureCosmosDBAccount";
+CreateDatabase("appDB");
+CreateContainer("appDB","Orders","/category");
+
+aysnc Task CreateDatabase(string databaseName)
+{
+CosmosClient cc = new CosmosClient(cosmosEndpoint,cosmosDBKey );
+await cc.CreateDatabaseAsync(databaseName);
+Console.WriteLine("Database Created");
+}
+
+async Task CreateContainer(string databaseName, string containerName, string parititonKey);
+{
+CosmosClient cc = new CosmosClient(cosmosEndpoint,cosmosDBKey );
+Database db = cc.GetDatabase(databaseName);
+await db.CreateContainerAsync(container, parititonKey);
+Console.WriteLine("Container created");
+}
+
+
+Adding an Item
+=============================================================
+
+string cosmosEndpoint="URLFromAzureCOsmosDBAccount"; 
+string cosmosDBKey ="Primary/secondarykeFromAzureCosmosDBAccount";
+string databaseName ="appDB";
+string containerName="Orders";
+ 
+AddItem("1","Laptop",100);
+AddItem("1","Mobiles",20);
+AddItem("1","Desktop",20);
+AddItem("1","Laptop",25);
+
+
+async Task AddItem(string orderId, string category, int quanity)
+{
+CosmosClient cc = new CosmosClient(cosmosEndpoint,cosmosDBKey );
+Database db = cc.GetDatabase(databaseName);
+Container c = db.GetContainer(ContainerName);
+
+Order order = new Order()
+{
+id=Guid.NewGuid().Tostring(),  
+orderId = orderId,
+category = category,
+quantity = quantity
+}
+ItemResponse<order> response = await container.CreateItemAsync<Order>(order, new PartitionKey(category));
+Console.WriteLine("Added item with Order Id {0}", orderId);
+Console.WriteLine("Request Units {0}", response.RequestCharge); 
+}
+
+
+When we execute the above program we will get "id" required property is missing error. When we adding item from Azure automatically Id property is added by Azure. It is not the case with .net program. 
+
+
+.net - Reading item
+======================================================================
+
+async Task ReadItem()
+{
+CosmosClient cc = new CosmosClient(cosmosEndpoint,cosmosDBKey );
+Database db = cc.GetDatabase(databaseName);
+Container c = db.GetContainer(ContainerName);
+
+string query = "SELECT O.orderId,o.category,o.quantity from orders o"
+
+QueryDefinition qd = new QueryDefintion(query);
+FeedIterator<Order> feedIterator = container.GetItemQueryIterator<order>(qd);
+
+while(feedIterator.HasMoreResults)
+{
+FeedResponse<Order> feedResponse = await feedIterator.ReadNextAsync();
+foreach(Order order in feedResponse)
+{
+Console.WriteLine("Order Id {0}", order.orderId);
+Console.WriteLine("Category {0}", order.category); 
+Console.WriteLine("quantity {0}", order.quantity); 
+
+}
+}
+}
+
+Replace Item
+=============================================================
+
+async Task ReadItem()
+{
+CosmosClient cc = new CosmosClient(cosmosEndpoint,cosmosDBKey );
+Database db = cc.GetDatabase(databaseName);
+Container c = db.GetContainer(ContainerName);
+
+string orderId ="01";
+string query = "SELECT O.orderId,o.category,o.quantity from orders o where o.orderId='{orderId}'"
+
+string id="";
+string category="";
+
+QueryDefinition qd = new QueryDefintion(query);
+FeedIterator<Order> feedIterator = container.GetItemQueryIterator<order>(qd);
+
+while(feedIterator.HasMoreResults)
+{
+FeedResponse<Order> feedResponse = await feedIterator.ReadNextAsync();
+foreach(Order order in feedResponse)
+{
+id=order.id;
+category=order.category;
+}
+}
+  ItemResponse<Order> response = await container.ReadItemAsync<Order>(id, new PartitionKey )
+var item = response.Resource;
+item.quantity = 150;
+
+await container.ReplaceItemAsync<Order>(item, id, new PartitionKey(category));
+Console.WriteLine("Item is updated");
+}
+
+Delete Item
+=======================================================================
+
+async Task DeleteItem()
+{
+CosmosClient cc = new CosmosClient(cosmosEndpoint,cosmosDBKey );
+Database db = cc.GetDatabase(databaseName);
+Container c = db.GetContainer(ContainerName);
+
+string orderId ="01";
+string query = "SELECT O.orderId,o.category,o.quantity from orders o where o.orderId='{orderId}'"
+
+string id="";
+string category="";
+
+QueryDefinition qd = new QueryDefintion(query);
+FeedIterator<Order> feedIterator = container.GetItemQueryIterator<order>(qd);
+
+while(feedIterator.HasMoreResults)
+{
+FeedResponse<Order> feedResponse = await feedIterator.ReadNextAsync();
+foreach(Order order in feedResponse)
+{
+id=order.id;
+category=order.category;
+}
+}
+  ItemResponse<Order> response = await container.ReadItemAsync<Order>(id, new PartitionKey )
+ 
+await container.DeleteItemAsync<Order>(item, id, new PartitionKey(category));
+Console.WriteLine("Item is updated");
+}
+
+
+.Net - Array of objects - Adding item
+===============================================================
+await AddItem("c1","pravin","New York",
+new List<ORder>() {
+new Order 
+{
+orderId="01",
+category="Laptop",
+quantity=100
+}
+new Order
+{
+orderId="03",
+category="Mobile",
+quantity=200
+}
+}
+
+async Task AddArrayItem(string customerId, string customerName, string customerCity, List<Order> order)
+{
+CosmosClient cc = new CosmosClient(cosmosEndpoint,cosmosDBKey );
+Database db = cc.GetDatabase(databaseName);
+Container c = db.GetContainer(ContainerName);
+
+Customer customer = new Customer()
+{
+
+customerId = customerId,
+customerName = customerName, 
+customerCity = customerCity,
+orders = orders
+};
+
+container.CreateItemAsync<Customer> (customer,  new PartitionKey(customerCity));
+ Console.WriteLine("Item is added",customerId );
+}
+
+
+
+Stored procedures
+====================================================================================
+
+In cosmos DB stored procedures are written in javascript. 
+
+Stored procedure id = Display
+function()
+{
+var context = getContext();
+var response = context.getResponse(); 
+
+response.SetBody("Welcome to Stored procedure");
+
+}
+
+ string cosmosEndpointUri ="";
+ string cosmosDBkey = "";
+ string databaseName="appDB";
+ string containerName="orders";
+
+await CallStoredProcedure();
+{
+CosmoClient cosmosClient = new CosmosClient(cosmosEndpointUri, cosmosDBKey);
+Container container = cosmosCLient.GetContainer(databaseName, containerName);
+
+var result = container.Scripts.ExecuteStoredProcedureAsync<string>("Display", new PartitionKey(""),null )
+Console.WriteLine(result); 
+}
+
+
+Stored Procedure - Add an item
+===============================================================
+
+funcation createItems(items)
+{
+var context = getContext();
+var response = context.getResponse();
+
+if(!items)
+{
+response.setBody("Error: items are undefined");
+return;
+}
+
+var numOfItems = items.length;
+checkLength(numOfItems);
+
+for(let i=0;i<numofItems;i++)
+{
+createItem(item[i]);
+}
+
+}
+
+function checkLength(itemLength)
+{
+if(itemLength==0)
+{
+response.setBody("Error: items are undefined");
+return;
+}
+
+function createItem(item)
+{
+var collection = context.getCollection();
+var collectionLink = collection.getSelfLink();
+
+collection.createDocument(collectionLink,item);
+
+}
+
+}
+
+
+ string cosmosEndpointUri ="";
+ string cosmosDBkey = "";
+ string databaseName="appDB";
+ string containerName="orders";
+
+CosmoClient cosmosClient = new CosmosClient(cosmosEndpointUri, cosmosDBKey);
+Container container = cosmosCLient.GetContainer(databaseName, containerName);
+
+
+dynamic[] orderItems = new dynamic[]
+{
+new 
+{
+id=Guid.NewGuid().ToString(),
+orderid="01",
+category="Laptop",
+quantity=30
+},
+new 
+{
+id=Guid.NewGuid().ToString(),
+orderid="02",
+category="Mobile",
+quantity=40
+}
+}
+var result = container.Scripts.ExecuteStoredProcedureAsync<string>("Display", new PartitionKey("Laptop"), new[] orderedItem )
+Console.WriteLine(result); 
+
+
+
+Triggers
+================================================================
+Triggers we have pre and post triggers. We can do that pre and post triggers in cosmos DB as well, it will be in javascript function. 
+
+Trigger Type -> Pre/Post
+Trigger Operation -> Create / Delete/ Replace
+Trigger Body -> 
+
+function ValidateItem()
+{
+var context = getContext();
+var request = context.getRequest();
+var item = request.getBody();
+
+if(!("quantity" in item) )
+{
+item["quantity"]=0;
+}
+
+request.setBody(item)
+}
+
+
+ string cosmosEndpointUri ="";
+ string cosmosDBkey = "";
+ string databaseName="appDB";
+ string containerName="orders";
+
+CosmoClient cosmosClient = new CosmosClient(cosmosEndpointUri, cosmosDBKey);
+Container container = cosmosCLient.GetContainer(databaseName, containerName);
+
+
+dynamic[] orderItems = new dynamic[]
+{
+new 
+{
+id=Guid.NewGuid().ToString(),
+orderid="01",
+category="Laptop",
+quantity=30
+};
+
+container.CreateItemAsync(orderItem, null, new ItemRequestOptions { PreTriggers = new List<string> {"validateItem"}})
+
+// we can call multiple triggers, in the above example just calling one trigger. 
+
+
+Change feed
+==============================================================
+
+Record Changes -> Here changes to the container are recorded in the order that they occur. 
+
+Feed - The feed consists of inserts and updates. Deletes are not recorded. 
+
+Process change feed - you can process the change feed with the use of Azure Functions or change feed processor. 
+
+Records - The records for the change feed are written to another container
+
+Sorting - The change feed is sorted in the order of modification within each logical partition key values. 
+
+Throughtput 0 the same provisioned throughput can be used to read from the container containing the changes. 
+
+
+Lab Change feed - Azure functions
+================================================================
+
+Create new Azure function -> Cosmos DB account connection (select Cosmos DB connection name)
+Database name -> appDB
+Collection -> orders
+Collection name for leases -> leases
+
+Create lease cllection if it does not exist 
+
+// Azure function code. 
+using System;
+using System.Collection.Generic;
+using Microsoft.Azure.Documents;  
+
+public static void Run(IReadOnlyList<Document> input, Ilogger log)
+{
+if(input !=null && input.Count > 0)
+{
+log.LogInformation("Documents modified " + input.Count);
+log.LogInformation("First document id " + input[0].Id);
+}
+}
+
+
+Change Feed Processor
+================================================================================
+
+1. Monitored Container - This has the data from which the change feed is generated. 
+2. Lease container  - This stores the state and coordinates the processing of change feed across multiple workers. 
+3. Computer Instances - This hosts the change feed processor that is used to listen for changes. 
+4. Delegate - This is the code that is used to process the batch of changes. 	
+
+
+Change Feed Processor 
+
+	* The change feed processor library automatically check for change 	
+	* If the changes are foud they pushed to the client 
+	* If you have enough throughput and lot of changes that need to be read, you can have multiple clients to read the change feed. 
+
+
+.net program.cs
+----------------------------
+
+using CosmosDB;
+using Microsoft.Azure.Cosmos;
+
+string cosmosEndpointUri = "";
+string cosmosDBKey ="";
+string databasename= "appDB";
+string monitoredContainerName ="Orders";
+string leaseCOntainerName ="leases";
+
+await StartChangeProcessor();
+
+async Task StartChangePRocessor()
+{
+CosmosClient cc = new CosmosClient(cosmosEndpointUri,cosmosDBKey );
+Container container = cc.GetContainer(databasenmae, leasecontainerName);
+ChangeFeedProcessor cfp = cosmosCLient.GetContainer(databaseName, monitoredContainerName )
+	.GetChangeFeedProcessorBuilder<Order>(processorName: "ManageChanges", onChangesDelegate , onChangesDelegate: ManageChanges )
+	.WithInstance("appHost")
+	.WithLeaseContainer(leasecontainer)
+	.Build()
+
+Console.WriteLine("Starting the change feed processor");
+await changeFeedProcessor.StartAsync();
+Console.Read();
+await changeFeedProcessor.StopAsync()
+}
+
+static async Task ManageChanges(
+ChangeFeedProcessContext context, IReadOnlyCollection<Order> itemCollection, 
+CancellationToken cancellationToken)
+{
+foreach(Order item in itemCollection)
+{
+Console.WriteLine("Id {0}", item.id);
+Console.WriteLine("Order Id {0}", item.orderId);
+Console.WriteLine("Creation time {0}", item.creationTime);
+}
+}
+
+
+Composite Indexes
+============================================================
+
+1. SELECT * FROM C ORDER BY C.category; this will run. If we order by both category and quantity then we will get the below error. "The order by query does not have a corresponding composite index that it can be served from."
+2. Order container -> Settings -> Indexing policy - > add the below property
+
+"compositeIndexes" :[
+[
+{
+"path": "/category",
+"order":"ascending"
+},
+{
+"path": "/quantity",
+"order":"ascending"
+}
+]
+]
+
+now the query with both category and quantity oreder by will work. 
+
+
+Time To live
+===================================================================
+
+Delete Items - Here items from the container can be deleted automatically after certain period of time. 
+Level - This can be set at the item level or container level. 
+Deletion process - Item will be deleted based on the Time to live that is set in seconds. 
+Background task -  The deletion process is done as a background task that uses the left-over Request Units. 
+For the item - For the TTL to work at the item level, the setting should also be defined at the container level
+Benefit - Here the process of deletion is managed by Azure Cosmos DB.
+
+
+Orders -> Settings -> Time to live - 10 seconds
+
+Consistency 
+================================================================
+1. Azure Cosmos DB account -> Settings -> Default Consistency
+	1. Strong
+	2. Bound Staleness
+	3. Session
+	4. Consistent prefix
+	5. Eventual
+
+Replicate Data globally -> Write Region West US. But if our customers more mostly reside in Centra US then we can replicate the data to Central US so that the latency will be less. 
+
+But it will cost us for additional RU/s and storage cost. Remember write will be happening only from West US, Central US is our read regions. 
+
+
+If user writes data from one region then the data should be replicated, before that if some user reads the data then it will not be latest. We have different consistency levels. 
+
+Strong - The reads are guananteed to return the most recent committed version. This consistency will give more latency and less throughput. Because till the data is replicated application is not allowed to read data from it. 
+
+Bounded staleness - Here the reads might lag behind writes by at most K versions of an item or T time interval. 
+
+Maxmimum Lag(time) Days/Hours/Minutes/Seconds or Maximum Lag (Operations) 
+
+Session - Here within a single client session, the reads are guaranteed to honor the consistent prefix, monotonic reads and writes, read-your-writes and write-follows-read guarantees. 
+Consisten prefix - Here client will not see out of order writes. 
+Eventual - Eventually the data will be consistent. But there is no order gurantee for the reads. 
