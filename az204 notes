@@ -3120,3 +3120,519 @@ Maxmimum Lag(time) Days/Hours/Minutes/Seconds or Maximum Lag (Operations)
 Session - Here within a single client session, the reads are guaranteed to honor the consistent prefix, monotonic reads and writes, read-your-writes and write-follows-read guarantees. 
 Consisten prefix - Here client will not see out of order writes. 
 Eventual - Eventually the data will be consistent. But there is no order gurantee for the reads. 
+
+
+
+Section 12
+################################################################################3
+
+1. Consider a scenario we have an application to upload videos, once the upload is over another application need to process it. 
+Consider we have many instances to process the video, then we should ensure each application should take unique  video should not take same video by multiple applicaiton. Also If suppose application took one video to process then failed in between then there should be a way to convey other / same instances to take that video and reprocess it. 
+
+To achieve these kinds of operation requires the messaging services. Where we are decoupling the application which process the application and list of videos to be processed in a seperate services. This is where queue storage comes into picture. We can handle retry on failure and many more advanced feature available on messaging services like service bus. 
+
+Azure Storage Queue
+================================================================
+
+1. Need a general purpose V2 account. -> Add Queue -> Add messages ->  Message Text, Expires in 7 days by default -> 
+Click on the messages we can see the below properties. Id, Message body, Insertion time, Expiration time, Dequeue count 
+2. Dequeue message -> will remove FIFO order. Clear queue will remove all messages. 
+
+
+.Net Sending messages
+===============================================================
+Program.cs 
+
+using.Azure.Storage.Queues;
+
+string connectionString="Constr from Queue -> accesskey";
+string queueName="appqueue";
+
+
+SendMessage("Test Message 1");
+SendMessage("Test Message 2");
+
+void SendMessage(string message)
+{
+QueueClient qc = new QueueClient(connectionString, queueName);
+
+if(qc.Exists())
+{
+qc.SendMessage(message);
+Console.WriteLine("The message has been sent");
+}
+}
+
+
+// Peek message will not remove message from queue, but we will be able to read messages
+void PeekMessage()
+{
+QueueClient qc = new QueueClient(connectionString, queueName);
+
+int maxMessages = 10;
+
+PeekedMessage[] peekMessages = qc.PeekMessages(maxMessages);
+
+foreach(var peekMessage in peekMessages)
+{
+console.WriteLine(peekMessage.Body);
+}
+
+}
+
+
+Receive Message
+=========================================================================
+void ReceiveMessage()
+{
+QueueClient qc = new QueueClient(connectionString, queueName);
+
+int maxMessages = 10;
+
+QueueMessage[] queueMessages = qc.ReceiveMessages(maxMessages);
+
+foreach(var message in peekMessages)
+{
+console.WriteLine(message.Body);
+qc.DeleteMessage(message.MessageId, message.PopReceipt)
+}
+
+}
+
+Please note ReceiveMessage is two step process, it will read and remove the messages from queue and if the message is not successfully processed then it should delete the message or else the message will be placed back to queue. If you see the dequeue count is 1 now. So lets add delete message in our program 
+
+
+Get QueueLength 
+================================================================
+
+int GetQueueLength()
+{
+QueueClient qc = new QueueClient(connectionString, queueName) 
+if(queueClient.Exists())
+{
+QueueProperties prop = qc.GetProperties();
+return properties.ApproximateMessageCount;
+}
+return 0;
+
+}
+
+Sending and Receiving objects
+=====================================================================
+
+void SendMessage(string orderid, int quantity)
+{
+QueueClient qc = new QueueClient(connectionString, queueName) 
+if(qc.Exists())
+{
+ Order order = new Order {OrderId = orderid, Quantity=quantity};
+qc.SendMessage(JsonConvert.SerializeObject(order));
+Console.WriteLine("The Order information has been sent");
+}
+} 
+
+
+Azure storage Queue - Azure functions
+===================================================================
+
+1. Create new Azure Function -> Queue trigger -> Storage emulator ( Connection string setting name => connectionString, Queue Name => appqueue
+
+
+public class Queue
+{
+[FunctionName("GetMessages")]
+public void Run([QueueTrigger("appqueue",Connection="connectionString")]string myQueueItem, Ilogger log )
+{
+
+log.LogInformation($"C# Queue trigger function processed:{myQueueItem}");
+}
+}
+
+
+At this point of time, we would receive message "The input is not a valid Base-64 string as it contains a non-base 64 character, more than two padding characters "
+
+
+If the message is not delivered after defined max recount then it will be moved to  originalqueueName-poison  
+
+
+void SendMessage(string orderid, int quantity)
+{
+QueueClient qc = new QueueClient(connectionString, queueName) 
+if(qc.Exists())
+{
+ Order order = new Order {OrderId = orderid, Quantity=quantity};
+ var jsonObject = JsonConvert.SerializeObject(order);
+var bytes = System.Text.Encoding.UTF8.GetBytes(jsonObject);
+var message = System.Convert.ToBase64String(bytes);
+
+qc.SendMessage(message);
+Console.WriteLine("The Order information has been sent");
+}
+} 
+
+
+Output to Table Storage 
+====================================================================
+
+1. Create a table called Orders
+2. Create a class to represent table Order 
+
+public class TableOrder
+{
+public string PartitionKey {get;set;}
+public string RowKey {get; set;}
+
+
+}
+
+
+public class Queue
+{
+[FunctionName("GetMessages")]
+[return: Table("Orders", Connection="connectionString")]
+public TableOrder Run([QueueTrigger("appqueue",Connection="connectionString")]string myQueueItem, Ilogger log )
+{
+
+TableOrder to = new TableOrder()
+{
+PartitionKey = order.OrderId
+RowKey = order.Quantity.ToString() 
+}
+log.LogInformation("Order Information has been written to the table"); 
+return tableOrder;
+}
+}
+
+
+
+Another way of writing the code to output to table storage
+You can actually also write the below code to write to Azure Table storage
+
+Here in the definition of the Run method, you can add a reference to the table. And then also add the output type as ICollector. Then add the table objects to the ICollector Interface reference.
+
+
+
+using System;
+using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Host;
+using Microsoft.Extensions.Logging;
+ 
+namespace QueueFunction
+{
+    public class Queues
+    {
+        [FunctionName("GetMessages")]
+        
+        public void Run([QueueTrigger("appqueue", Connection = "connectionString")]Order order, ILogger log, [Table("Orders", Connection = "connectionString")]ICollector<TableOrder> tableorder)
+        {
+            TableOrder tableOrder = new TableOrder()
+            {
+                PartitionKey = order.OrderID,
+                RowKey = order.Quantity.ToString()
+            };
+            tableorder.Add(tableOrder); 
+            log.LogInformation("Order written to table");
+            
+        }
+    }
+}
+
+
+Azure Queue Message Trigger  - Important Note
+================================================================
+
+Concurrecy 
+
+Concurrency
+When there are multiple queue messages waiting, the queue trigger retrieves a batch of messages and invokes function instances concurrently to process them. By default, the batch size is 16. When the number being processed gets down to 8, the runtime gets another batch and starts processing those messages. So the maximum number of concurrent messages being processed per function on one virtual machine (VM) is 24. This limit applies separately to each queue-triggered function on each VM. If your function app scales out to multiple VMs, each VM will wait for triggers and attempt to run functions. For example, if a function app scales out to 3 VMs, the default maximum number of concurrent instances of one queue-triggered function is 72.
+
+The batch size and the threshold for getting a new batch are configurable in the host.json file. If you want to minimize parallel execution for queue-triggered functions in a function app, you can set the batch size to 1. This setting eliminates concurrency only so long as your function app runs on a single virtual machine (VM).
+
+The queue trigger automatically prevents a function from processing a queue message multiple times simultaneously.
+
+
+Azure Service Bus
+====================================================================================================
+
+Azure Service Bus is fully managed Enterprise message broker.
+
+Data can include structured encoded data with formats. JSON , XML, Apache avro
+
+* The messages in the queue are ordered 
+* The messages are held in triple-redundant storage (means we wont lose our messages even in failure. redundate 3 times for backup)
+* The data is available across availablility zones if enabled
+* The messages can then be retrieved via the pull mode. 
+
+
+Topics 
+-------------------
+
+The subscriber to the topic will receive a copy of the message sent to the topic
+
+You can define rules which contain filters on each subscription. The filter will decide which mesages are received by the subscription. 
+
+
+Creating an Azure Service bus Queue
+============================================================
+1. Create Service Bus -> Namespace name -> 	Pricing Tier (Basic -only supports Queue, Standard - supports queue and Topics) 
+2. Queue ->  
+	* Max queue size -  
+	* Max delivery count  
+	* Message time to Live
+	* Lock Duration 
+	* Enable auto-delete on idle
+	* Enable duplicate detection 
+	* Enable dead lettering on message expiration 
+	* Enable partitioning 
+	* Enable sessions
+ 	* Forward messages to queue/topic
+ 
+In  Service Bus namespace -> Service bus Explorer -> We can send / Receive / Peek on the azure portal 
+
+
+Azure Service Bus queues - .Net sending messages
+===========================================================================
+1. Create .net project and install Azure.Messaging.ServiceBus ->   
+2. Azure Service Bus queue -> Shared access policies -> Add ->  Manage / Send /Listen -> Save -> now we will get primary and secondary key. 
+3. Program.cs  -> 
+
+using Azure.Messaging.ServiceBus;
+using ServiceBusQueue;
+
+List<Order> orders = new List<Order)()
+{
+new Order() {orderId="1",Quantity=100,unitPrice=9.9f},
+new Order() {orderId="2",Quantity=200,unitPrice=9.9f},
+new Order() {orderId="3",Quantity=300,unitPrice=9.9f}
+}	
+
+async Task SendMessage(List<Order> orders)
+{
+
+ServiceBusClient sbc = new ServiceBusClient(connectionString);
+ServiceBusSender sbs = serviceBusClient.CreateSender(queueName);
+
+ServiceBusMessageBatch sbmb = await serviceBusSender.CreateMessageBatchAsync()
+
+foreach(Order order in orders)
+{
+if(!sbmb.TryAddMssage(
+	new ServiceBusMessage(JsonConvert.SerializeObject(order))))
+{
+throw new Exception("Error occured");
+}
+
+}
+Console.WriteLine("Sending messages");
+await sbs.SendMessagesAsync(sbmb);
+}
+
+
+Peek Message
+=================================================================
+
+async Task PeekMessages()
+{
+
+ServiceBusClient serviceBusClient = new ServiceBusClient(connectionString);
+ServiceBusReceiver serviceBusReceiver = serviceBusClient.CreateReceiver(queueName, 
+	new ServiceBusReceiverOptions() { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+
+IAsyncEnumerable<ServiceBusReceivedMessage> messages = serviceBusReceiver.ReceiveMessagesAsync();
+
+await foreach(ServiceBusReceivedMessage message in messages)
+{
+Order order = JsonConvert.DeserializeObject<Order>(message.Body.ToString());
+Console.WriteLine("Order Id {0}",order.OrderId);
+Console.WriteLine("Quantity {0}",order.Quantity);
+Console.WriteLine("Unit price {0}",order.UnitPrice);
+})
+}
+
+
+
+
+==============================================================================
+
+
+async Task SendMessage(List<Order> orders)
+{
+
+ServiceBusClient sbc = new ServiceBusClient(connectionString);
+ServiceBusSender sbs = serviceBusClient.CreateSender(queueName);
+
+ServiceBusMessageBatch sbmb = await serviceBusSender.CreateMessageBatchAsync()
+
+foreach(Order order in orders)
+{
+
+ServiceBusMessage serviceBusMessage = new ServiceBusMessage(JsonConvert.SerializeObject(order));
+serviceBusMessage.ContentType = "application/json";
+serviceBusMessage.ApplicationProperties.Add("Importance","High")
+
+if(!sbmb.TryAddMssage(
+	serviceBusMessage))
+{
+throw new Exception("Error occured");
+}
+
+}
+Console.WriteLine("Sending messages");
+await sbs.SendMessagesAsync(sbmb);
+}
+
+
+
+application level properties can be read by ApplicationProperties["PropertyName"] ;
+
+
+
+Message Processor 
+=====================================================================
+1. Create message processor method
+ServiceBusClient sbc = new ServiceBusClient(connectionString);
+ServiceBusProcessor serviceBusProcessor = serviceBusClient.CreateProcessor(queueName, new ServiceBusProcessorOptions());
+
+serviceBusProcessor.ProcessMessageAsync += ProcessMessage;
+serviceBusProcessor.ProcessErrorAsync   += ErrorHandler;
+
+await serviceBusProcessor.StartProcessingAsync();
+Console.WriteLine("Waitint for messages");
+Console.ReadKey();
+
+await serviceBusProcessor.StopProcessingAsync();
+await serviceBusProcessor.DisposeAsync();
+await serviceBusClient.DisposeAsync();
+
+static async Task ProcessMessage(ProcessMessageEventArgs message)
+{
+Order order = JsonConvert.DeserializeObject<Order>(messageEvent.Message.Body.ToString());
+Console.WriteLine("Order Id {0}",order.orderId);
+Console.WriteLine("Quantity {0}",order.Quantity);
+Console.WriteLine("UnitPrice {0}",order.UnitPrice);
+
+}
+
+static Task ErrorHandler(ProcessErrorEventArgs args)
+{
+Console.WriteLine(args.Exception.ToString());
+return Task.CompletedTask;
+}
+
+
+Message Lock Duration 
+=================================================================
+
+
+async Task PeekMessages()
+{
+//Peeklock will pick the message from the queue and lock it for the lock duration mentioned in the azure portal, after that lock duration another application can access that message. If that message is not processed by previous pick. 
+ServiceBusClient serviceBusClient = new ServiceBusClient(connectionString);
+ServiceBusReceiver serviceBusReceiver = serviceBusClient.CreateReceiver(queueName, 
+	new ServiceBusReceiverOptions() { ReceiveMode = ServiceBusReceiveMode.PeekLock });
+
+ServiceBusReceivedMessage  messages =await serviceBusReceiver.ReceiveMessageAsync();
+
+ 
+Order order = JsonConvert.DeserializeObject<Order>(message.Body.ToString());
+Console.WriteLine("Order Id {0}",order.OrderId);
+Console.WriteLine("Quantity {0}",order.Quantity);
+Console.WriteLine("Unit price {0}",order.UnitPrice);
+ 
+await serviceBusReceiver.CompleteMessageAsync(message); // this will mark our message operation as complete and dlete the message from the queue. 
+}
+
+
+
+Time To Live
+=======================================================================
+
+How long our messages should be active. After this Time to Live period messages should be saved permemnantly to dead letter queue. Provided dead letter queue is enabled and its not manually deleted. 
+
+We can do peek-lock delivery. 
+
+We can read this messages from dead letter queue as well. for that below is the setting
+
+string queueName="appqueue/$DeadLetterQueue"
+on connection string in the end  - Entitypath=appqueue/$DeadLetterQueue\
+
+
+Duplicate Message Detection
+=======================================================================
+You can't enable or disable duplicate detection after the queue or topic is created.
+
+1. Enable duplicate detection during queue creation -> enable time duration -> We need to keep some unique id, with the same id, it wont allow messages for 10 (whatever time duration we have mentioned ) mins duration time.
+
+2. Create new SAS and update in .net program and update the new queue name. (Please note we have RootManageSharedAccessKey where we can access all the queue )
+
+
+Azure Service Bus - Topics
+=================================================================
+
+1. Its a publisher subcriber model, if application subscribe to a topic then it will receive message when a message is published in that topic. 
+2. Create a topic then under topic -> create 2 subscriptions - > 
+3. Go to service bus explorer -> send message -> now both subscripers will get this message. 
+4. When peek or receive, we need to tell on behalf of which subscription we are doing that. 
+
+
+Sending Messages from .Net 
+=======================================================================
+There is no changes in sending messages same as storage queue. 
+1. Create .net project and install Azure.Messaging.ServiceBus
+2. Create Shared access key for send -> and upadte this key in connection string. 
+3. Define topicName 
+
+
+
+Sending Messages from .Net 
+=======================================================================
+There is no changes in sending messages same as storage queue.  
+1. Create .net project and install Azure.Messaging.ServiceBus
+2. Create .net project and install Azure.Messaging.ServiceBus
+2. Create Shared access key for send -> and upadte this key in connection string. 
+
+
+Sending Messages from .Net 
+=======================================================================
+
+1.Create .net project and install Azure.Messaging.ServiceBus
+2. Install ServiceBusTopicReceiver from nuget. 
+3. Create access policy to listen to messages and copy access key to this program connection string, topic name and subscriptionName in the ServiceBusReceiver code
+
+Topic Filters
+=======================================================================
+1. Subscripers can decide which messages they want to receive, with the help of fileters.
+2. This can be defined with the use of rules
+3. Each rule has a filter condition.
+4. The message will contain a property called RuleName that shows the matching rule. 
+
+Types of files
+* Boolean filters - this is either the TrueFilter or FalseFilter. This can cause all the messages to be send to the subscription or for the subscription to receive no messages.
+* SQL filters  - Here SQL like language can be used to evaluate the messages user-defined or system properties
+* Correlation filters - Here also conditions can be matched against the messages user or system defined properties. 
+* Correlation filters are more efficient than SQL filters. 
+
+
+Boolean Filters
+=================================
+1. Go to subscription -> Overview -> Filters -> Add filter -> put condition like 1=0 -> This is always false and no messages will be recieved to the subscription under that particular topic. 
+
+SQL Filters 
+==========================================================
+
+There are two types of properties. 
+	1. User defined properties, this will go like user.Importance="High", so this topic will pick message only if the user defined Importance property is equal to High
+	2. System properties, this will work like sys.MessageId='1' only then pick that message. 
+	3. We can use like opertion etc in sql filter. 
+
+Correlation filters
+==============================================================
+
+Correlation filters are same as sql filter, but we will have list of properties on a dropdown we can choose system and Custom properties and give values for our condition. It is efficient than sql filter. 
+
+
+Azure Function to pick service bus 
+=====================================================================
+
+1. Create a .net project -> Azure function ->   Service Bus QueueTrigger -> Connection string setting name =ConnectionString and Queue Name =orderqueue
+2. Settings.Json copy the Shared access key without Entitypath.  
