@@ -3636,3 +3636,558 @@ Azure Function to pick service bus
 
 1. Create a .net project -> Azure function ->   Service Bus QueueTrigger -> Connection string setting name =ConnectionString and Queue Name =orderqueue
 2. Settings.Json copy the Shared access key without Entitypath.  
+
+
+
+Azure Event Hubs
+===============================================================================
+
+Azure Event hubs are basically take data from multiple sources and ingest the data in real time and then analyze or store the data for further analysis
+
+This is a big data streaming platform. 
+
+This service can receive and process millions of events per second
+
+You can stream log data, telemetry data, any sort of events to Azure Event Hubs. 
+
+Different components
+=====================================================================
+
+1. Event producers - This is an entity that sends data to an event hub. The events can be published using the protocols - HTTPS, AMQP, Apache Kafka
+2. Partitions - The data is split across partitions. This allows for better throughput of your data onto Azure Event Hubs. 
+3. Consumer groups - This is a view (state, position or offset) of an entire event hub
+4. Throughput - This controls the throughput capacity of Event Hubs. 
+5. Event Receivers - This is an entity that reads event data. 
+
+
+
+Lab - Event Hubs 
+=============================================================
+
+All resources -> Create resource -> Event Hubs -> Create Namespace  
+Then you can create Event Hub  -> Partition count -> With more event hubs more events can be processed paralelly hence better throughput. 
+In Azure Service bus we had service bus explorer to send messages. but we dont have anything to send data to event hub, we need to create .net program to send data. 
+
+Sending data from .net program
+--------------------------------
+Create new console app ->  Install Azure.Messing.EventHubs -> 
+program.cs -> 
+
+string connectionString ="";  // connection string is taken from new Shared access key with send permission . 
+string eventHubName = "apphub"
+
+sendData();
+
+
+public class  Device
+{
+public string deviceId {get;set;}
+public float temperature {get;set;}
+}
+
+List<Device> devices = new List<Device>()
+{
+	new Device() { deviceId ="D1", temperature=40.0f}.
+	new Device() { deviceId ="D2", temperature=39.0f},
+	new Device() { deviceId ="D3", temperature=42.0f},
+	new Device() { deviceId ="D4", temperature=32.0f},
+	new Device() { deviceId ="D5", temperature=23.0f},
+}
+void SendData()
+{
+EventHubProducerClient eventHubProducerClient = new EventHubProducerClient(connectionString, eventHubName);
+EventDataBatch eventDataBatch = await eventHubProducerClient.CreateBatchAsync();
+foreach(Device device in deviceList)
+{
+EventData eventData = new EventData(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(device));
+if(!eventDataBatch.TryAdd(eventData))
+Console.WriteLine("Error has occured adding data to the batch");
+}
+
+await eventHubProducerClient.SendAsync(eventDataBatch);
+Console.WriteLine("Events sent"); 
+await  eventHubProducerClient.DisposeAsync(); 
+}
+
+After running this program we can see the request in the azure portal event hub resource. But there is no message
+
+
+Reading data to Azure Event Hub
+======================================================================
+1. Create new console app ->  Install Azure.Messing.EventHubs -> 
+2. Create Shared access policies -> with Listen permission 
+3. EventHub -> Consumer groups -> Default consumer group name is "$Default"
+4. Program.cs
+
+string connectionString="ListenpermissionSharedAccessPolicy";
+string consumerGroup="$Default";
+
+
+aysnc Task GetPartitionIds()
+{
+EventHubConsumerClient eventHubConsumerClient = new EventHubConsumerClient (consumerGroup, connectionString);
+string[] partitionIds = await eventHubConsumerClient.GetPartitionIdsAsync();
+
+foreach(string partitionid in partitionIds)
+{
+console.WriteLine("Partition Id {0}", partitionId)
+}
+}
+
+async Task ReadEvents()
+{
+EventHubConsumerClient eventHubConsumerClient = new EventHubConsumerClient (consumerGroup, connectionString);
+var cancellationSource = new CancellationTokenSource();
+cancellationSource.CancelAfter(TimeSpan.FromSeconds(300));
+
+await foreach(PartitionEvent partitionEvent in eventHubConsumerClient.ReadEventsAsync(cancellationSource.Token))
+{
+Console.WriteLine($"Partition Id {paritionEvent.Partition.PartitionId}"); // How data is split across partition is Azure's decision
+Console.WriteLine($"Data Offset {partitionEvent.Data.Offset}"); // Offset is size of the data
+Console.WriteLine($"Sequence Number {partitionEvent.Data.SequenceNumber}");
+Console.WriteLine($"Partition Key {partitionEvent.Data.EventBody}");
+Console.WriteLine(Encoding.UTF8.GetString(paritionEvent.Data.EventBody));
+}
+
+}
+
+
+Important points
+=============================
+1. The consumer application needs to keep on running to process events in real time from the Event Hub. 
+2. After consuming the events do the events get deleted? - No, because Azure Event Hubs serves a different purpose. May be another type of consumer needs to read the events for different purpose. 
+3. Does that mean Azure Event Hubs will keep the message indefinitely? - No There is message retention period, after the period it will get deleted. 
+4. After running the consumer program again, it is again reading all of the events again from the begiinning, so our program needs to keep track of events being read. 
+
+
+Reading from particular partition
+==========================================
+
+async Task ReadEvents()
+{
+
+EventHubConsumerClient eventHubConsumerClient = new EventHubConsumerClient (consumerGroup, connectionString);
+string partitionId = await (eventHubConsumerC lient.GetPartitionIdsAsync()).First();
+
+var cancellationSource = new CancellationTokenSource();
+cancellationSource.CancelAfter(TimeSpan.FromSeconds(300));
+
+await foreach(PartitionEvent partitionEvent in eventHubConsumerClient.ReadEventsFromPartitionAsync(partitionId, EventPosition.Latest))
+{
+Console.WriteLine($"Partition Id {paritionEvent.Partition.PartitionId}"); // How data is split across partition is Azure's decision
+Console.WriteLine($"Data Offset {partitionEvent.Data.Offset}"); // Offset is size of the data
+Console.WriteLine($"Sequence Number {partitionEvent.Data.SequenceNumber}");
+Console.WriteLine($"Partition Key {partitionEvent.Data.EventBody}");
+Console.WriteLine(Encoding.UTF8.GetString(paritionEvent.Data.EventBody));
+}
+
+Using Event Processor Class
+=========================================================================================
+Lets say we have our event hub data is read from particular position.  But in case of any failure it should know to resume from its failure point. 
+
+We have Event processor class to achieve the same. It is doing by storing data of different checkpoints in azure storage accounts. 
+
+1. Create console based app -> Azure.Messinging.EventHubs.Processor, Azure.Storage.Blob
+2. Program.cs
+string connectionString ="ConnectionStringofSharedAccessPolicywith lisen permission"; 
+string consumerGroup ="$Default"
+string containerName ="storageAccountContainerName"
+string blobConnectionString ="";
+
+BlobContainerClient blobContainerClient = new BlobContainerClient(blobConnectionString ,containerName );
+EventProcessClient eventProcessClient = new EventProcessClient(blobContainerClient ,consumerGroup, connectionString   );
+
+eventProcessClient.ProcessEventAsync += ProcessEvents;
+eventProcessClient.ProcessErrorAsync += ErrorHandler;
+
+await eventProcessClient.StartProcessingAsync();
+Console.ReadKey();
+eventProcessClient.StopProcessingAsync();
+
+async Task ProcessEvents(ProcessEventArgs processEvent)
+{
+Console.WriteLine(processEvent.Data.EventBody.ToString());
+
+}
+
+static Task ErrorHandler(ProcessErrorEventArgs errorEvent)
+{
+Console.WriteLine(errorEvent.Exception.Message);
+return Task.CompletedTask;
+}
+
+
+Event Hubs Other concpets
+======================================================================================
+
+1. Event Hub namespace -> Azure Event Hub (Produce will send the event) -> Partitions -> Consumer group ($Default will be default) -> Receiver. 
+
+2. Throughput capacity -> Ingress -> up to 1MB per second or 1000 events per second
+		       -> Egress  -> up to 2MB per second or 4096 events per second
+
+3. When you receive more than defined throughput units then You might start getting ServerBusyExceptions when the ingress traffic goes beyond the limit. 
+4. You cannot change the number of partitions after the hub is created, except for the dedicated cluster and premium tier offering.
+5. Recommended throughput of 1 MB/s per partition
+6. you can mention which property in your data can be the partition key. Based on the paritition key Azure will hash the value and map the event to the relevant partition. 
+7. The recommendation is to have one receiver per partition, you can have up to 5 concurrent readers per partition per consumer group, but you have to be careful not to duplicate the process of reading the same messages.  
+
+
+
+Partition key Lab
+================================================================
+1. We need to send data to only particular deviceId 
+2. Send data to sent batch of records
+
+void SendData()
+{
+EventHubProducerClient eventHubProducerClient = new EventHubProducerClient(connectionString, eventHubName);
+List<EventData> dataList =  new List<EventData>();
+
+
+foreach(Device device in deviceList)
+{
+EventData eventData = new EventData(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(device));
+dataList.Add(eventData);
+if(!eventDataBatch.TryAdd(eventData))
+Console.WriteLine("Error has occured adding data to the batch");
+}
+
+await eventHubProducerClient.SendAsync(dataList, new SendEventOptions() {PartitionKey="D1 "});
+Console.WriteLine("Events sent"); 
+await  eventHubProducerClient.DisposeAsync(); 
+}
+
+
+Enabling the capture feature
+==========================================================================
+1. This is available for standard tier of event hub namespace 
+2. Namespace -> capture -> Azure Event Hubs Capture enables you to automatically deliver the streaming data in Event Hubs to an Azure Blob storage or Azure Data Lake Store account of your choice, with the added flexibility of specifying a time or Event Hubs throughput units. Event Hubs Capture is the easiest way toload streaming data into Azure and enables you to focus on data processing rather than on data capture. 	
+3. Capture On ->  Either any Minute Time Window or Size of any MB 
+4. Files will be saved on .Avro format, which is best for big files sizes. We have read this file using specific code. 
+
+Streaming diagnostics data from an Azure SQL database
+===================================================================
+1. This section we are going to send events from different source, we have dianostic data for various resources, we will see Aqure SQL 
+2. Change the throughput units of Event hub namespace -> from 1 to 5. (as we have more sources to publish event) 
+3. Create new Event Hub to receive events -> Sqlhub -> partition count as 4  -> 
+4. Azure SQL -> Diagnostics setting -> Metrics -> Basic  -> Destination details -> Stream to an event hub -> Event hub policy name is used from the namespace shared access key (RootManagedSharedAccessKey) -> save -> Wait for 40 mins max. Now Azure SQL will send its diagnostics setting to event hub. \
+5. Modify the existing program to point connection string of sqlhub 
+6. sqlhub -> shared access policy -> create a key to listen permission. 
+
+Comparision with Azure Service Bus and Event Hub
+=========================================================================
+1. Azure Service Bus is message broker. means different applications will connected thourgh message broker, one application publish a message and another application consume it. 
+
+Azure Event Hub is injection service, means from different services send data to Event hub and consumer can consume it and also possible to store it in the database. 
+
+
+Event Grid
+======================================================================================
+1. Event grid allows you to easily build applications with event-based architectures. 
+
+Trigger Event grid when there was an event in storage account 
+
+1. Create functional app (Plan type ->App service plan in    ) -> Select Azure Event Grid Trigger  -> BlobEventGridTrigger 
+2. Create Event Subscription on Storage account -> Topic Type (Storeage account)
+						-> System Topic Name -> blobtopic 
+						-> Blob created , Blob Deleted, Directory created, Directory Deleted, Blob Renamed, Directory Renamed, Blob Tier Changed, Blob Inventroy Completed, Async Operation Initiated, Lifecycle policy completed. 
+3. Select Endpoint -> Azure storage account and function app in same azure region (North Europe) 
+Notice we are using topic concept, for example only Blob created and Blob deleted topic is listened by the Azure function
+4. We can use Azure Blob storage trigger -> We can use new or updated blob is detected. But if you want to use more feature go for the above 
+
+Different between Azure Blob trigger and Event grid 
+
+1. If you Azure Function is based on the Consumption Plan, there can be a latency in processing new blobs, then consider two options
+	* Change to the App Service Plan and put the Always On enabled option
+	* Use the Event Grid trigger 
+
+Use the Event Grid trigger in high-scale events like processing more than 100,000 blobs or 100 blob updates per second.
+
+Another option for faster and reliable processing of blobs 
+1. Consider creating a queue message when creating the blob
+2. Use the queue trigger and then process the blob. 
+
+
+Azure Functions - Processing Blobs
+====================================================================
+1. Azure function -> Blob trigger -> RenameFunction -> blob -> FunctionName "ProcessBlob" -> 
+blob.cs
+
+public class Blob
+{
+[FunctionName("ProcessBlob")]
+public void Run([BlobTrigger("data/{name}", Connection ="connectionString")]Stream myBlob, string name, Ilogger log)
+{
+StreamReader reader = new StreamReader(myBlob);
+string blob = reader.ReadToEnd();
+log.LogInformation(blob);
+
+}
+}
+
+AppSettings.json -> give connectionstring of storage account -> 
+
+Azure Functions - Copying blobs
+====================================================================
+1
+public class Blob
+{
+[FunctionName("ProcessBlob")]
+public aync Task Run([BlobTrigger("data/{name}", Connection ="connectionString")]Stream myBlob,  [Blob("newdata/{name}", FileAccess.ReadWrite)] BlobClient newBlob  , Ilogger log)
+{
+newBlob.UploadAsync(myBlob);
+}
+}
+ 
+2. Install Azure.Storeage.Blobs
+3. Install Microsoft.Azure.WebJobs.Extensions.Storage latest version 	
+4. We will sometime get an error like Azure.Storage.Blobs: Service request failed, this is because azure functions require storage account for functioning, but in local it is using storage emulator but if you are getting this error then you can copy paste azure storage account connection string to get rid of this error. 
+
+
+Event Grid Schema
+==========================================================================
+1. Event Grid event schema
+2. Cloud event schema
+
+
+Debug Azure Event Locally
+
+
+==============================================================
+(How we can point to our localhost when some blob is created, for that we have to use Web Hook as endpoint type and then we have to run ngrok on our local machine(this tool is suggested in microsoft documentation) this tool will make our local url available on the internet
+1. Download Exe and then go to cmd prompt then navigate to the URL where our exe file is 
+2. ngrok config add-authtoken 1bocrHaa1gfmXLmPCWLTWKzumk_326HAVXvLEeYhFRnjmaAi --copied from ngrok documentation) 
+3. ngrok http 7070 // port that is used by our localhost application 
+1. Create new Azure function -> Event grid trigger ->  https://1925-86-98-187-66.ngrok.io/runtime/webhooks/EventGrid?functionName=ProcessEvent
+
+
+Session Status 			Online
+Account				your account mail 
+Version				3.0.3
+Region				United States
+Latency				198.22 ms
+Web Interface 			http://127.0.0.1:4040
+Forwarding 			https://1925-86-98-187-66.ngrok.io -> http://localhost:7071  
+Connections 			ttl  opn  rt1    rt5  p50  p90
+
+Getting Events at the resource group level 
+====================================================================
+Resource Group -> Events -> Create Event Subscription -> Event Type -> We can select all events of Resource group -> Endpoint type -> Azure Function -> EndPoint (Select Azure Function) -> 
+
+Go To All resources -> topic -> resourceGroupTopic of type Event Grid System Topic 
+
+
+Azure Queue storage as consumer for your Event 
+==================================================================
+1. Storage account -> Add Queue -> Event subscription 
+2. Event subscription -> End point -> Storage Queue -> Select End point -> Select queue 
+
+
+Filters - Subject Begin with
+==================================================================
+
+Subject Filters -> Subject Begins with / Subject Ends With (Case sensitive subject matching) 
+
+ 
+Connecting to HTTP endpoint
+==================================================================
+
+1. Create a Azure function based on HTTP trigger (here we need to manually do the Handshake) 
+
+public static class EventGrid
+{
+[FunctionName("ProcessEvents")]
+public static async Task<IActionResult> Run(
+[HttpTrigger(AuthorizationLevel.Function, "get", "post", Route=null)] HttpRequest req, ILogger log)
+{
+string request = new StreamReader(req.Body).ReadToEnd();
+log.LogINformation($"Received request body {request}");
+
+EventGridSubscriber eventGridSubscriber = new EventGridSubscriber();
+EventGridEvent[] eventGridEvents =  eventGridSubscriber .DeserializeEventGridEvents(reqiuest);
+
+foreach(EventGridEvent eventGridEvent in eventGridEvents)
+{
+if(eventGridEvent.Data is SubscriptionValidationEventData)
+{
+}
+SubscriptionValidationEventData validationEventData = (SubscriptionValidationEventData) eve
+
+log.LogInformation($"Validation code {validationEventData.ValidationCode}");
+log.LogInformation($"Validation URL {ValidationEventData.ValidationUrl}");
+
+SubscriptionValidationResponse response = new SubscriptionValidationResponse();
+{
+ValidationResonse = validationEventData.ValidateCode
+};
+return new OkObjectResult(response);
+}
+else
+log.LogInformation(eventGridEvent.Data.ToString());
+}
+
+return new OkObjectResult(string.Empty);
+
+
+Create Custom Topic
+=====================================================================
+
+1. Create Event Grid Topic -> Create Event Subscription ->  Event type -> app.neworder -> Endpont -> 
+2. Create new Function app project -> Install Azure.Messageing.EventGrid -> Create order class -> Program.cs ->
+
+Uri topicEndpoint = new Uri("TopicEndpontofCustomEventTopic");
+AzureKeyCredential azureKeyCredential = new AzureKeyCredential("Key from same CustomTopic");
+
+List<order> orders = new List<order>()
+{
+new order() { OrderId =1, UnitPrice=9, Quantity=100 }
+}
+
+
+EventGridPublisherClient  eventGridPublisherClient = new EventGridPublisherClient(topicEndpoint, azureKeyCredential);
+
+string subject="adding new order";
+string eventType="app.neworder"
+string dataVersion="1.0";
+ 
+List<EventGridEvent> events = new List<EventGridEvent>();
+foreach(Order order in orders)
+{
+EventGridEvent eventGridEvent = new EventGridEvent(subject, eventType, dataVersion, JsonConvert.SerializeObject(order));
+events.Add(eventGridEvent);
+
+}
+
+await eventGridPublisherClient.SendEventsAsync(events); 
+Console.WriteLine("Events Sent");
+
+
+API management Service
+=======================================================================
+
+You can place all of your API behind API management service, so that you can 
+	* Better Security
+	* Define policies
+	* Built-in cache
+
+1. Create API Management ->  Pricing tier -> Developer (no SLA) -> Creation of this resource will take 45 mins. 
+2. Sample API Echo API is created by default , Create New API -> Display name , Name, -> Add Operation (Add, Update, Delete etc) -> Test you can call your API just same as postman. 
+3. Invoke URL via postman -> By default when we use API management authorization is implemented. Subscription key and value is there under HTTP request of API management. 
+
+
+Allow Access only via API management
+=================================================================
+Azure web app (of API project) -> Networking -> Add rule -> AllowAPI ->  Add API management public API -> and add rule to block all other access by IP Address block 0.0.0.0/0 
+
+
+Using Swagger definition
+======================================================================
+ 
+ Instead of creating all operation manually, we can make use of swagger definition to populate all operations. 
+1. Open Swagger index page and download .json file which you can find just under the projectname 
+2. Create from definition -> OpenAPI -> Open API specification -> Select Json file -> Create 
+3. Notice json file have only operation not base URL. so we have to go to ProdcutAPI -> Settings -> Web Service URL 
+
+
+API Management policy - IP restriction 
+=======================================================================================
+this URL gives all the possible policies https://learn.microsoft.com/en-us/azure/api-management/api-management-access-restriction-policies
+
+1. API management -> Design -> Design -> In bound -> Policies -> We can see inbound, outbound, backend and onerror etc. 
+<policies>
+ <inbound>
+   <base/>
+     <ip-filter action="forbid">
+    <address>13.66.201.169</address>
+    <address-range from="13.66.140.128" to="13.66.140.143" />
+     </ip-filter>
+ </policies>
+</inbound>	
+
+Expressions 
+======================================================================
+https://learn.microsoft.com/en-us/azure/api-management/api-management-policy-expressions
+
+Rewrite URL
+=============================================================
+Transformation policies -> Rewrite URL 
+
+1. http://domain/api/Products/{id} - this is the format for our api. to get particular product, but if we give id as query string it will not understand.  We can use rewrite rule for this scenarios. 
+
+2. <set-variable name="" value="@(context.Request.Url.Query.GetValueOrDefault("id"))" />
+<rewrite-uri template="@{return "/api/products/" + context.Variables.GetValueOrDefault<string>("id");}" />
+
+
+3.
+Inbound -> Incoming request to API management service (rule we write here will format the incoming request so that it can be understood by the API management)
+Backend -> Modify the request before it reaches the backend or API service
+Outbound ->  Modify the response before it send to the user
+Onerror -> if timeout occurs / authorization error occurs
+
+4. Policy can be applied on the whole API level or in the Operation (get/post/put) levels also. 
+5. <base /> represents whatever policies applied on the base level is applicable to this operation. 
+
+API mangement - return policy
+==================================================================
+1.  <choose>
+      <when condition="@(context.Response.StatusCode ==200)">
+	<return-response>
+	  <set-status code="200" reason="OK">
+	  <set-header name="Response-reason" exists-action="override">
+		<value>"Returned product list"</value>  
+	  </set-header>
+	   <set-body> @{
+		string text= context.Response.Body.As<string>(preserveContent:true);
+		return tex;
+}
+</set-body> 
+
+After this policy we can see the header Response-reason is added and also the returned response is not properly formated as json, but the string is as is. 
+
+Cache
+======================================================================
+1. Go to any API operation -> getcall for example -> Send -> then you have message and track in the httpresponse ->  cache-lookup -> "using cache 'internal'"
+	1. Cache lookup results in a miss / hit. 
+2. In bound rule 
+
+<cache-lookup vary-by-developer="false" vary-by-developer-groups="false"  downstream-caching-tyupe="none"
+  must-revalidate="true" caching-type="internal"	>
+
+in the outbound
+<cache-store duration="60">
+
+
+https://learn.microsoft.com/en-us/azure/api-management/api-management-caching-policies
+https://learn.microsoft.com/en-us/azure/api-management/api-management-sample-cache-by-key
+
+API management policy - oauth setup
+=============================================================================
+
+1. Azure AD -> Register an application "productapi"->  go to Manifes of "productapi and update accessTokenAcceptedVersion as 2 -> save
+2. Expose API on "productapi" -> Add scope -> save andcontinue -> Scope name -> we will get Application ID URI
+3. API management instance -> OAuth 2.0 + OpenID connect -> Add -> Client registration page URL ="http://localhost" -> Authorization code, and Client credentials (if url is going to be accessed from postman tool) 
+4. Authorization endpoint URL -> productapi -> overview -> oauth 2.0 authorization endpoint will come here. Token endpoint url also same location 
+5. Default scope -> application id uri of Expose API  -> Application ID URI 
+6. Client secret -> Create a new secret from productapi
+7. Client ID - > product API overview 
+8. Redirect URI -> Authorization code grant flow -> copy url and then go to prodcut api -> Authentication -> redirect url past here. 
+9. Select Access token and ID tokens. 
+10. API -> Product API -> Settings -> Uncheck "subscription required" and select Security -> OAuth 2.0 and OAuth 2.0 server as Product API 
+in these steps we are trying 	to register productapi is integrated with oauth of API management. 
+
+
+
+Create application object in app service
+
+
+
+
+
+API Management - Virtual network
+=========================================================================================
+If our app service is hosted on virtual machine then it is not straightforward like our app service public ip address, where we are directly accessing. 
+
+As virtual machines are isolated virtual network we need to use load balancer to router our API management request to virtual machine. There are two approaches to do that. 
+	1. External - the gateway is accessible from the public internet via an expernal load balancer. 
+	2. Internal - the gateway is only accessible from the virtual network via an internal load balancer. 
+
